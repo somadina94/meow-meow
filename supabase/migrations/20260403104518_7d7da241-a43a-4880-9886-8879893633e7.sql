@@ -1,0 +1,1 @@
+DELETE FROM active_chat_sessions WHERE status = 'ended';

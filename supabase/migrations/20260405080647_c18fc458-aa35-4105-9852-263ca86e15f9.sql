@@ -1,0 +1,1 @@
+ALTER TABLE public.video_call_sessions ADD COLUMN IF NOT EXISTS call_type text NOT NULL DEFAULT 'video';

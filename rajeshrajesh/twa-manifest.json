@@ -1,0 +1,59 @@
+{
+  "packageId": "app.lovable.meowmeow.twa",
+  "host": "meow-meow.co.in",
+  "name": "Meow MEOW FRND APP",
+  "launcherName": "MeowMeow",
+  "display": "standalone",
+  "themeColor": "#1aa39b",
+  "themeColorDark": "#0a0d14",
+  "navigationColor": "#0a0d14",
+  "navigationColorDark": "#0a0d14",
+  "navigationDividerColor": "#0a0d14",
+  "navigationDividerColorDark": "#0a0d14",
+  "backgroundColor": "#0a0d14",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://meow-meow.co.in/icons/icon-512x512.png",
+  "maskableIconUrl": "https://meow-meow.co.in/icons/icon-512x512.png",
+  "monochromeIconUrl": "https://meow-meow.co.in/icons/icon-512x512.png",
+  "shortcuts": [
+    {
+      "name": "Chat",
+      "shortName": "Chat",
+      "url": "/dashboard?tab=chat",
+      "iconUrl": "https://meow-meow.co.in/icons/icon-192x192.png"
+    },
+    {
+      "name": "Calls",
+      "shortName": "Calls",
+      "url": "/dashboard?tab=calls",
+      "iconUrl": "https://meow-meow.co.in/icons/icon-192x192.png"
+    },
+    {
+      "name": "Wallet",
+      "shortName": "Wallet",
+      "url": "/wallet",
+      "iconUrl": "https://meow-meow.co.in/icons/icon-192x192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://meow-meow.co.in/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": { "enabled": true },
+    "playBilling": { "enabled": false }
+  },
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://meow-meow.co.in/",
+  "minSdkVersion": 23,
+  "orientation": "portrait",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  }
+}

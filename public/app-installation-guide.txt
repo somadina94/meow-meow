@@ -1,0 +1,264 @@
+================================================================================
+                        APP INSTALLATION GUIDE
+                       Meow Meow - Friend & Chat
+================================================================================
+
+This guide explains how to install the Meow Meow app on all devices and 
+operating systems. The app is a Progressive Web App (PWA) that can be 
+installed directly from your browser.
+
+
+================================================================================
+                              iOS (iPhone & iPad)
+================================================================================
+
+Requirements: Safari browser (required - other browsers don't support this)
+
+Steps:
+------
+1. Open Safari browser on your iPhone or iPad
+
+2. Navigate to the Meow Meow app website
+
+3. Tap the SHARE button at the bottom of the screen
+   • It looks like a square with an arrow pointing up (⬆️)
+
+4. Scroll down in the share menu
+
+5. Tap "Add to Home Screen"
+   • It has a plus (+) icon next to it
+
+6. Enter a name for the app (or keep the default)
+
+7. Tap "Add" in the top right corner
+
+8. Done! The app icon will appear on your home screen
+
+Note: Chrome, Firefox, and other browsers on iOS do NOT support PWA 
+installation. You MUST use Safari.
+
+
+================================================================================
+                              Android
+================================================================================
+
+Requirements: Chrome, Samsung Internet, Edge, or Opera browser
+
+Option A - Automatic Prompt:
+----------------------------
+1. Open Chrome (or compatible browser) on your Android device
+
+2. Navigate to the Meow Meow app website
+
+3. You should see an "Install" or "Add to Home Screen" popup automatically
+
+4. Tap "Install"
+
+5. Done! The app icon will appear on your home screen
+
+
+Option B - Manual Installation (if no popup appears):
+----------------------------------------------------
+1. Open Chrome on your Android device
+
+2. Navigate to the Meow Meow app website
+
+3. Tap the three-dot menu (⋮) in the top right corner
+
+4. Tap "Install App" or "Add to Home Screen"
+
+5. Tap "Install" to confirm
+
+6. Done! The app icon will appear on your home screen
+
+
+================================================================================
+                              Windows
+================================================================================
+
+Requirements: Chrome, Edge, or Opera browser
+
+Option A - Address Bar Install:
+-------------------------------
+1. Open Chrome or Edge browser
+
+2. Navigate to the Meow Meow app website
+
+3. Look for the install icon (⊕) in the address bar (right side)
+
+4. Click the install icon
+
+5. Click "Install" in the popup dialog
+
+6. Done! The app will open in its own window and be added to Start Menu
+
+
+Option B - Browser Menu:
+------------------------
+1. Open Chrome or Edge browser
+
+2. Navigate to the Meow Meow app website
+
+3. Click the three-dot menu (⋮) in the top right corner
+
+4. Click "Install Meow Meow" or "Apps > Install this site as an app"
+
+5. Click "Install" to confirm
+
+6. Done! The app is now installed
+
+
+================================================================================
+                              macOS (Mac)
+================================================================================
+
+Requirements: Chrome, Edge, or Safari browser
+
+Using Chrome or Edge:
+--------------------
+1. Open Chrome or Edge browser
+
+2. Navigate to the Meow Meow app website
+
+3. Look for the install icon (⊕) in the address bar
+
+4. Click the install icon
+
+5. Click "Install" in the popup dialog
+
+6. Done! The app will be added to your Applications folder
+
+
+Using Safari (macOS Sonoma 14+):
+-------------------------------
+1. Open Safari browser
+
+2. Navigate to the Meow Meow app website
+
+3. Click "File" in the menu bar
+
+4. Click "Add to Dock"
+
+5. Done! The app will be added to your Dock
+
+
+================================================================================
+                              Linux
+================================================================================
+
+Requirements: Chrome, Edge, or Chromium browser
+
+Steps:
+------
+1. Open Chrome, Edge, or Chromium browser
+
+2. Navigate to the Meow Meow app website
+
+3. Look for the install icon (⊕) in the address bar (right side)
+   OR click the three-dot menu (⋮)
+
+4. Click "Install Meow Meow" or "Install app"
+
+5. Click "Install" to confirm
+
+6. Done! The app will be available in your applications menu
+
+
+================================================================================
+                              Chrome OS (Chromebook)
+================================================================================
+
+Requirements: Chrome browser (built-in)
+
+Steps:
+------
+1. Open Chrome browser
+
+2. Navigate to the Meow Meow app website
+
+3. Click the install icon (⊕) in the address bar
+
+4. Click "Install"
+
+5. Done! The app will appear in your app launcher
+
+
+================================================================================
+                         BENEFITS OF INSTALLING
+================================================================================
+
+✓ Quick access from home screen / desktop / taskbar
+✓ Works offline - use the app without internet
+✓ Faster loading - app resources are cached locally
+✓ Full-screen experience - no browser bars or distractions
+✓ Push notifications - get notified of new messages and matches
+✓ Automatic updates - always have the latest version
+✓ Less data usage - cached content reduces bandwidth
+
+
+================================================================================
+                           TROUBLESHOOTING
+================================================================================
+
+Problem: Install option not appearing
+Solution: 
+• Make sure you're using a supported browser (Chrome, Edge, Safari)
+• Refresh the page and wait a few seconds
+• Clear browser cache and try again
+
+Problem: "Add to Home Screen" not available on iOS
+Solution:
+• You MUST use Safari - other browsers don't support this on iOS
+• Make sure iOS is updated to the latest version
+
+Problem: App not updating
+Solution:
+• Close the app completely
+• Reopen the app - it will check for updates
+• Or clear the app cache in your device settings
+
+Problem: Push notifications not working
+Solution:
+• Make sure notifications are enabled in your device settings
+• Grant notification permission when prompted in the app
+
+
+================================================================================
+                              UNINSTALLING
+================================================================================
+
+iOS:
+----
+Long-press the app icon > Tap "Remove App" > Tap "Delete App"
+
+Android:
+--------
+Long-press the app icon > Drag to "Uninstall" or tap "Uninstall"
+
+Windows:
+--------
+Settings > Apps > Find "Meow Meow" > Click "Uninstall"
+
+macOS:
+------
+Open Finder > Applications > Drag app to Trash
+
+Linux:
+------
+Use your distribution's app manager or remove from applications menu
+
+
+================================================================================
+                              NEED HELP?
+================================================================================
+
+If you have any issues with installation, please contact our support team.
+
+Email: support@meowmeow.app
+Website: Visit our Help Center in the app
+
+
+================================================================================
+                     © Meow Meow - Friend & Chat
+                         All Rights Reserved
+================================================================================

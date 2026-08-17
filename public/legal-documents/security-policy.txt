@@ -1,0 +1,29 @@
+MEOW MEOW – SECURITY POLICY
+Last Updated: 2025
+
+1. Encryption
+
+- Data in transit: TLS 1.3
+- Data at rest: AES-256
+- Chat messages encrypted end-to-end
+
+2. Infrastructure
+
+- Servers hosted in India and Asia-proof regions
+- Firewalls, DDoS protection, access logs
+
+3. Access Control
+
+- Staff access is limited
+- Multi-factor security on admin panel
+
+4. Monitoring
+
+- 24/7 automated threat monitoring
+- Abuse detection
+- Fraud prevention AI
+
+5. Backup & Recovery
+
+- Daily secure backups
+- Region-redundant storage

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="appName">Meow MEOW FRND APP</string>
+    <string name="launcherName">MeowMeow</string>
+
+    <!-- Digital Asset Links statement embedded in the APK.
+         The matching JSON file MUST also be hosted at
+         https://meow-meow.co.in/.well-known/assetlinks.json -->
+    <string name="assetStatements">
+        [{
+            \"relation\": [\"delegate_permission/common.handle_all_urls\"],
+            \"target\": {
+                \"namespace\": \"web\",
+                \"site\": \"https://meow-meow.co.in\"
+            }
+        }]
+    </string>
+</resources>

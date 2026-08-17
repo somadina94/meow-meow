@@ -1,0 +1,62 @@
+CREATE OR REPLACE FUNCTION public.get_online_men_dashboard()
+RETURNS TABLE(user_id uuid, full_name text, photo_url text, country text, state text, preferred_language text, primary_language text, age integer, mother_tongue text, wallet_balance numeric, last_seen timestamp with time zone, active_chat_count bigint)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT
+    p.user_id,
+    p.full_name,
+    p.photo_url,
+    p.country,
+    p.state,
+    p.preferred_language,
+    p.primary_language,
+    p.age,
+    COALESCE(ul.language_name, p.primary_language, p.preferred_language, 'English')::text AS mother_tongue,
+    COALESCE(wb.balance, 0)::numeric AS wallet_balance,
+    us.last_seen,
+    COALESCE(chat_counts.cnt, 0)::bigint AS active_chat_count
+  FROM profiles p
+  INNER JOIN user_status us
+    ON us.user_id = p.user_id
+    AND us.is_online = true
+    AND COALESCE(us.status_text, 'online') <> 'busy'
+  LEFT JOIN LATERAL (
+    SELECT ul2.language_name
+    FROM user_languages ul2
+    WHERE ul2.user_id = p.user_id
+    ORDER BY ul2.created_at ASC
+    LIMIT 1
+  ) ul ON true
+  LEFT JOIN LATERAL (
+    SELECT GREATEST(COALESCE(SUM(
+      CASE WHEN wt.t = 'credit' THEN wt.a
+           WHEN wt.t = 'debit'  THEN -wt.a
+           ELSE 0 END
+    ), 0), 0)::numeric AS balance
+    FROM (
+      SELECT wt1.type AS t, wt1.amount AS a, wt1.status AS s
+        FROM public.wallet_transactions wt1
+        WHERE wt1.user_id = p.user_id
+      UNION ALL
+      SELECT wt2.type AS t, wt2.amount AS a, wt2.status AS s
+        FROM public.wallet_transactions_archive wt2
+        WHERE wt2.user_id = p.user_id
+    ) wt
+    WHERE wt.s = 'completed'
+  ) wb ON true
+  LEFT JOIN LATERAL (
+    SELECT COUNT(*)::bigint AS cnt
+    FROM active_chat_sessions acs
+    WHERE acs.man_user_id = p.user_id AND acs.status = 'active'
+  ) chat_counts ON true
+  WHERE p.gender IN ('male', 'Male')
+    AND p.photo_url IS NOT NULL
+    AND p.photo_url != ''
+    AND p.account_status = 'active'
+  ORDER BY COALESCE(chat_counts.cnt, 0) ASC, COALESCE(wb.balance, 0) DESC;
+END;
+$function$;

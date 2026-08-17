@@ -1,0 +1,25 @@
+# Environment API Keys Reference
+# ================================
+
+# Frontend Environment Variables (.env)
+# -------------------------------------
+VITE_SUPABASE_PROJECT_ID=supabase
+VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2bmVvaG5nZXJhY2lwamFqem9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5ODgxNDEsImV4cCI6MjA4MDU2NDE0MX0.3YgATF-HMODDQe5iJbpiUuL2SlycM5Z5XmAdKbnjg_A
+VITE_SUPABASE_URL=https://www.meow-meow.co.in:8443
+
+# Supabase/Cloud Secrets (Edge Functions)
+# ----------------------------------------
+# These are encrypted and stored securely in Supabase.
+# Values are NOT displayed for security reasons.
+# Access them in edge functions via: Deno.env.get('SECRET_NAME')
+
+HUGGING_FACE_ACCESS_TOKEN=<encrypted - set via Lovable secrets>
+LOVABLE_API_KEY=<system managed - cannot be deleted>
+MAILJET_API_KEY=<encrypted - set via Lovable secrets>
+MAILJET_SECRET_KEY=<encrypted - set via Lovable secrets>
+
+# Auto-provided by Supabase (available in edge functions)
+# -------------------------------------------------------
+SUPABASE_URL=https://www.meow-meow.co.in:8443
+SUPABASE_SERVICE_ROLE_KEY=<auto-provided by Supabase - not accessible>
+SUPABASE_ANON_KEY=<same as VITE_SUPABASE_PUBLISHABLE_KEY>

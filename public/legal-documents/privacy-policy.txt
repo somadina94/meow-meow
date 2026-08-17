@@ -1,0 +1,60 @@
+MEOW MEOW – PRIVACY POLICY
+Last Updated: 2025
+
+1. Information We Collect
+
+- Name, gender, age, DOB
+- Languages & mother tongue
+- Country & region
+- Online/offline status
+- Device information
+- Payment history
+- Earnings history (women)
+- Chat messages are auto-deleted after 15 minutes.
+
+2. Sensitive Data
+
+We do not collect:
+- Contacts
+- Social accounts
+- Personal media files (permanent)
+
+3. How We Use Data
+
+- Matching
+- Auto-translation
+- Safety
+- Fraud detection
+- Legal compliance
+
+4. Data Storage & Transfer
+
+Your data may be stored in:
+- India
+- Singapore
+- Japan
+- UAE
+- Any Asia-based secure data center
+
+All storage is compliant with GDPR, CCPA, DPDP India, and global privacy frameworks.
+
+5. Your Rights
+
+- Delete account
+- Request data export
+- Correct personal data
+- Withdraw consent
+
+6. Data Sharing
+
+We may share limited data with:
+- Payment processors
+- Payout providers
+- Law enforcement (only when legally required)
+
+7. Data Retention
+
+- Chat: 15 minutes
+- Payments: 7 years
+- Logs: 30–90 days
+- Account data: Until the user deletes account

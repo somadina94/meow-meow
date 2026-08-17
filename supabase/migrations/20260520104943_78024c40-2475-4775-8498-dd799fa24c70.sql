@@ -1,0 +1,1 @@
+DELETE FROM public.password_reset_tokens WHERE expires_at < now();

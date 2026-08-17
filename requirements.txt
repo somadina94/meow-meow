@@ -1,0 +1,230 @@
+# ============================================================
+# Requirements File — Meow Meow WebRTC Infrastructure
+# ============================================================
+#
+# This file lists ALL system and software requirements needed
+# to deploy the complete WebRTC video calling infrastructure.
+#
+# Two server types are required:
+#   1. TURN Server  — For P2P (1-on-1) video call NAT traversal
+#   2. SRS Server   — For SFU (group) video call media relay
+#
+# Both can run on a single server for small deployments.
+# ============================================================
+
+
+# ====================
+# OPERATING SYSTEM
+# ====================
+# Ubuntu Server 22.04 LTS (Jammy Jellyfish) — RECOMMENDED
+# Ubuntu Server 24.04 LTS (Noble Numbat) — SUPPORTED
+# Architecture: x86_64 (amd64) or arm64
+
+
+# ====================
+# HARDWARE (Minimum)
+# ====================
+# CPU:     2 vCPU (4 vCPU recommended)
+# RAM:     4 GB  (8 GB recommended)
+# Storage: 40 GB SSD
+# Network: 100 Mbps (1 Gbps recommended)
+# Bandwidth: 2 TB/month minimum
+
+
+# ====================
+# HARDWARE (Recommended for Production)
+# ====================
+# CPU:     4-8 vCPU
+# RAM:     8-16 GB
+# Storage: 80 GB NVMe SSD
+# Network: 1 Gbps dedicated
+# Bandwidth: 10 TB/month
+
+
+# ====================
+# SYSTEM PACKAGES
+# ====================
+# These are installed via apt (Ubuntu's package manager)
+
+# Core utilities
+curl                          # HTTP client for downloads and API calls
+wget                          # Alternative download tool
+openssl                       # Cryptographic toolkit (SSL/TLS, secret generation)
+ca-certificates               # Root SSL certificates for HTTPS
+gnupg                         # GPG for package verification
+lsb-release                   # Linux Standard Base version info
+software-properties-common    # Manage apt repositories
+
+# Networking tools
+net-tools                     # ifconfig, netstat, route
+stun-client                   # Test STUN server connectivity
+dnsutils                      # dig, nslookup for DNS troubleshooting
+iptables                      # Firewall management (used by UFW)
+ufw                           # Uncomplicated Firewall (frontend for iptables)
+
+# Monitoring tools
+htop                          # Interactive process viewer
+vnstat                        # Network traffic monitoring
+iftop                         # Real-time bandwidth monitor (optional)
+
+# Scripting and parsing
+python3                       # Python 3 for JSON parsing in scripts
+jq                            # Command-line JSON processor (optional)
+
+# Security
+fail2ban                      # Intrusion prevention (brute force protection)
+unattended-upgrades           # Automatic security updates
+
+
+# ====================
+# TURN/STUN SERVER
+# ====================
+# coturn — Open-source TURN and STUN server
+
+coturn                        # Version 4.5.2+ (from Ubuntu repos)
+                              # Provides: turnserver binary
+                              # Config:   /etc/turnserver.conf
+                              # Logs:     /var/log/turnserver/
+                              # Service:  systemctl {start|stop|status} coturn
+                              # Ports:    3478 (STUN/TURN), 5349 (TLS), 49152-65535 (relay)
+
+
+# ====================
+# DOCKER (for SRS)
+# ====================
+# Docker CE — Container runtime for SRS media server
+
+docker-ce                     # Docker Community Edition (latest stable)
+docker-ce-cli                 # Docker command-line interface
+containerd.io                 # Container runtime
+docker-compose-plugin         # Docker Compose V2 (plugin)
+docker-compose                # Docker Compose standalone (V1 compat)
+
+# Docker images used:
+# ossrs/srs:5                 # SRS v5 — WebRTC media server (~50MB image)
+
+
+# ====================
+# SRS MEDIA SERVER
+# ====================
+# SRS (Simple Realtime Server) — High-performance media server
+# Deployed via Docker, no direct apt installation needed
+
+# SRS Version: 5.x (latest stable)
+# Docker Image: ossrs/srs:5
+# GitHub: https://github.com/ossrs/srs
+# Documentation: https://ossrs.io
+
+# SRS Protocols Supported:
+# - WebRTC (used for group video calls)
+# - RTMP (available but not used)
+# - HLS (available for future live streaming)
+# - HTTP-FLV (available but not used)
+
+# SRS Ports:
+# 1935/tcp — RTMP
+# 1985/tcp — HTTP API
+# 8080/tcp — HTTP server / WebRTC signaling
+# 8000/udp — WebRTC media transport
+
+
+# ====================
+# WEB SERVER / REVERSE PROXY
+# ====================
+# Nginx — HTTP server and reverse proxy
+
+nginx                         # Version 1.18+ (from Ubuntu repos)
+                              # Used for: SSL termination, reverse proxy
+                              # Config:   /etc/nginx/sites-available/
+                              # Logs:     /var/log/nginx/
+                              # Service:  systemctl {start|stop|status} nginx
+
+
+# ====================
+# SSL CERTIFICATES
+# ====================
+# Let's Encrypt — Free SSL certificates
+
+certbot                       # ACME client for Let's Encrypt
+python3-certbot-nginx         # Nginx plugin for Certbot
+                              # Auto-renewal via systemd timer
+                              # Certificates: /etc/letsencrypt/live/
+
+
+# ====================
+# SUPABASE CONFIGURATION
+# ====================
+# These are NOT installed on the server — they're configured in
+# the Supabase Dashboard under Settings → Edge Functions → Secrets
+
+# Required Supabase Secrets:
+# SRS_API_URL    = https://srs.yourdomain.com          (SRS HTTP API)
+# SRS_RTC_URL    = https://srs.yourdomain.com/rtc/v1   (SRS WebRTC signaling)
+# TURN_SECRET    = <your-coturn-static-auth-secret>     (TURN credential generation)
+
+
+# ====================
+# CLIENT-SIDE REQUIREMENTS
+# ====================
+# These are the browser/client requirements (not server)
+
+# Browser Support:
+# Chrome 80+    — Full WebRTC support
+# Firefox 78+   — Full WebRTC support
+# Safari 14.1+  — WebRTC support
+# Edge 80+      — Full WebRTC support (Chromium-based)
+
+# Required Browser APIs:
+# navigator.mediaDevices.getUserMedia()  — Camera/mic access
+# RTCPeerConnection                     — WebRTC peer connections
+# WebSocket                             — Signaling transport
+
+# Required Permissions:
+# Camera access                          — For video calls
+# Microphone access                      — For audio calls
+
+
+# ====================
+# NETWORK REQUIREMENTS
+# ====================
+# Firewall ports that must be open (inbound):
+
+# TCP 22       — SSH (server management)
+# TCP 80       — HTTP (redirect to HTTPS)
+# TCP 443      — HTTPS (Nginx reverse proxy)
+# TCP 3478     — STUN/TURN
+# UDP 3478     — STUN/TURN
+# TCP 5349     — TURN over TLS
+# TCP 1935     — SRS RTMP (optional)
+# TCP 1985     — SRS HTTP API
+# TCP 8080     — SRS HTTP/WebRTC signaling
+# UDP 8000     — SRS WebRTC media
+# UDP 49152-65535 — TURN relay port range
+
+
+# ====================
+# RECOMMENDED HOSTING PROVIDERS
+# ====================
+# For India-focused deployment:
+
+# Budget:
+# Hetzner CPX31          — €15.90/mo — 4 vCPU, 8GB RAM
+# Vultr High Freq        — $24/mo   — 2 vCPU, 4GB RAM
+
+# Recommended:
+# DigitalOcean Premium   — $48/mo   — 4 vCPU, 8GB RAM (Bangalore)
+# Vultr High Freq        — $48/mo   — 4 vCPU, 8GB RAM (Mumbai)
+
+# Enterprise:
+# AWS EC2 c5.xlarge      — ~$120/mo — 4 vCPU, 8GB RAM (Mumbai)
+# GCP e2-standard-4      — ~$100/mo — 4 vCPU, 16GB RAM (Mumbai)
+
+
+# ====================
+# INSTALLATION
+# ====================
+# Run the automated installer:
+#   sudo bash scripts/unix/webrtc-install.sh
+#
+# Or follow the manual guide:
+#   docs/WEBRTC-DEPLOYMENT-GUIDE.md

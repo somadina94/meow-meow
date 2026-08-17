@@ -1,0 +1,1 @@
+ALTER TABLE public.female_profiles ADD COLUMN upi_id TEXT DEFAULT NULL;

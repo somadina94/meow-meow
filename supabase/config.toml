@@ -1,0 +1,67 @@
+project_id = "meowmeow"
+
+[functions.collect-metrics]
+verify_jwt = false
+
+[functions.verify-photo]
+verify_jwt = false
+
+[functions.reset-password]
+verify_jwt = false
+
+
+[functions.ai-women-approval]
+verify_jwt = false
+
+[functions.content-moderation]
+verify_jwt = false
+
+[functions.seed-legal-documents]
+verify_jwt = false
+
+[functions.data-cleanup]
+verify_jwt = false
+
+[functions.ai-women-manager]
+verify_jwt = false
+
+[functions.chat-manager]
+verify_jwt = false
+
+[functions.trigger-backup]
+verify_jwt = false
+
+[functions.seed-super-users]
+verify_jwt = false
+
+
+[functions.video-cleanup]
+verify_jwt = false
+
+[functions.group-cleanup]
+verify_jwt = false
+
+
+[functions.monthly-earning-rotation]
+verify_jwt = false
+
+[functions.auto-approve-kyc]
+verify_jwt = false
+
+[functions.video-call-circuit-breaker]
+verify_jwt = false
+
+[functions.admin-create-user]
+verify_jwt = false
+
+[functions.admin-delete-user]
+verify_jwt = false
+
+[functions.send-push]
+verify_jwt = false
+
+[functions.payu-payment]
+verify_jwt = false
+
+[functions.razorpay-webhook]
+verify_jwt = false

@@ -1,0 +1,17 @@
+MEOW MEOW – AI USAGE DISCLOSURE
+Last Updated: 2025
+
+AI is used for:
+
+- Auto-translation (NLLB-200)
+- Gender verification
+- Fraud prevention
+- Content moderation
+- Age estimation
+
+AI is NOT used for:
+
+- Final suspension decisions
+- Payout approvals
+
+All AI-assisted decisions are subject to human review upon user request.

@@ -1,0 +1,12 @@
+MEOW MEOW – DATA RETENTION POLICY
+Last Updated: 2025
+
+Data Type              | Retention Period
+-----------------------|------------------
+Chat messages          | 15 minutes
+Payment records        | 7 years
+Device logs            | 30–90 days
+Account data           | Until user deletes
+Fraud data             | 90 days
+
+Users may request early deletion of their data by contacting support, subject to legal requirements.

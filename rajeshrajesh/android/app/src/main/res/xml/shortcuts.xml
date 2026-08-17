@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press app icon shortcuts. Each opens a deep link into the web app. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="chat"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/launcherName"
+        android:shortcutLongLabel="@string/launcherName">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="app.lovable.meowmeow.twa"
+            android:targetClass="app.lovable.meowmeow.twa.LauncherActivity"
+            android:data="https://meow-meow.co.in/dashboard?tab=chat" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="calls"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/launcherName"
+        android:shortcutLongLabel="@string/launcherName">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="app.lovable.meowmeow.twa"
+            android:targetClass="app.lovable.meowmeow.twa.LauncherActivity"
+            android:data="https://meow-meow.co.in/dashboard?tab=calls" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="wallet"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/launcherName"
+        android:shortcutLongLabel="@string/launcherName">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="app.lovable.meowmeow.twa"
+            android:targetClass="app.lovable.meowmeow.twa.LauncherActivity"
+            android:data="https://meow-meow.co.in/wallet" />
+    </shortcut>
+
+</shortcuts>

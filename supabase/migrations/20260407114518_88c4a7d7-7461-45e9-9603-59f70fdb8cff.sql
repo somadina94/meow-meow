@@ -1,0 +1,1 @@
+DELETE FROM public.monthly_statements WHERE user_id = '04cad57a-2647-457e-beb4-9a5c60fbbe44';

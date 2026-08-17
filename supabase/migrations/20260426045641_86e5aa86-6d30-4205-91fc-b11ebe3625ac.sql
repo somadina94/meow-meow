@@ -1,0 +1,1 @@
+GRANT SELECT ON public.public_female_profiles TO authenticated, anon;

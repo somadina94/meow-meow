@@ -1,0 +1,2 @@
+ALTER TABLE public.active_chat_sessions DROP CONSTRAINT active_chat_sessions_status_check;
+ALTER TABLE public.active_chat_sessions ADD CONSTRAINT active_chat_sessions_status_check CHECK (status = ANY (ARRAY['active', 'billing_paused', 'paused', 'ended', 'pending']));

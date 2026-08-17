@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Used by FileProvider to share files (e.g. profile photos picked from
+         the gallery) into the web view via the Web Share Target API. -->
+    <files-path name="shared_files" path="shared_files/" />
+    <cache-path name="shared_cache" path="shared_files/" />
+    <external-files-path name="external_shared" path="shared_files/" />
+</paths>

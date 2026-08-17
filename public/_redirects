@@ -1,0 +1,2 @@
+# SPA fallback so /auth, /dashboard, etc. load index.html instead of 404.
+/*    /index.html   200

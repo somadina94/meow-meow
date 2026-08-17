@@ -1,0 +1,3137 @@
+/* Fonts loaded via <link> in index.html for non-blocking render */
+
+/* WhatsApp-style scrollbar */
+.wa-chat-scroll::-webkit-scrollbar { width: 6px; }
+.wa-chat-scroll::-webkit-scrollbar-track { background: transparent; }
+.wa-chat-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
+
+/* WhatsApp typing dots animation */
+@keyframes wa-typing-bounce {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.4); opacity: 1; }
+}
+.wa-typing-dot {
+  animation: wa-typing-bounce 1.2s ease-in-out infinite;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================================
+   GLOBAL VIEWPORT FIT — prevent page scroll/zoom
+   Screens fit perfectly on all devices; only inner
+   content scrolls (preserves all functionality).
+   ======================================== */
+html, body, #root {
+  /* Use dynamic viewport unit so mobile browser chrome
+     doesn't push content off-screen */
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
+  overflow: hidden;        /* No page-level scrolling */
+  overscroll-behavior: none; /* Disable iOS rubber-band & pull-to-refresh */
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  position: fixed;         /* Lock body so iOS Safari can't bounce */
+  inset: 0;
+  touch-action: pan-y;
+}
+
+#root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================
+   UNIVERSAL PAGE LAYOUT — header + body + footer fit any device
+   Every page wrapper using `min-h-screen` is locked to the
+   viewport (100dvh). Inside it:
+     - <header> stays pinned to the top
+     - <footer> stays pinned to the bottom
+     - <main> (or the remaining flex child) scrolls internally
+   Safe-area insets keep content clear of notches and home bars.
+   No JS / no functional changes — pure CSS containment.
+   ============================================================ */
+.min-h-screen {
+  min-height: 100dvh;
+  max-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;                /* page itself never scrolls */
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Header inside any page wrapper — pinned at the top, never shrinks */
+.min-h-screen > header,
+.min-h-screen [data-app-header] {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+/* Footer inside any page wrapper — pinned at the bottom, never shrinks */
+.min-h-screen > footer,
+.min-h-screen [data-app-footer] {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 40;
+}
+
+/* The remaining child (body / main content) takes the leftover space
+   and is the only thing that scrolls. */
+.min-h-screen > main,
+.min-h-screen [data-app-body] {
+  flex: 1 1 auto;
+  min-height: 0;                   /* critical for flex overflow */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fallback: if a page wrapper has no explicit header/footer/main markers,
+   allow the wrapper itself to scroll so legacy pages still fit. */
+.min-h-screen:not(:has(> header)):not(:has(> footer)):not(:has(> main)):not(:has([data-app-body])) {
+  overflow-y: auto;
+}
+
+/* Hide scrollbars on small/inner scroll containers but keep functional */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@layer base {
+  :root {
+    /* Aurora Theme - Light Mode */
+    /* Deep cosmic background with aurora-inspired accents */
+    --background: 220 25% 97%;
+    --foreground: 230 25% 18%;
+
+    /* Cards with subtle aurora tint */
+    --card: 210 30% 98%;
+    --card-foreground: 230 25% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 25% 18%;
+
+    /* Primary - Aurora Teal/Cyan */
+    --primary: 174 72% 40%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 174 80% 55%;
+
+    /* Secondary - Aurora Purple */
+    --secondary: 270 50% 94%;
+    --secondary-foreground: 270 60% 35%;
+
+    /* Muted - Soft aurora grey */
+    --muted: 220 20% 94%;
+    --muted-foreground: 220 15% 45%;
+
+    /* Accent - Aurora Green */
+    --accent: 160 70% 42%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 90%;
+    --input: 220 20% 92%;
+    --ring: 174 72% 40%;
+
+    --radius: 0.75rem;
+
+    /* Semantic Status Colors - Use these instead of hardcoded colors */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 210 90% 50%;
+    --info-foreground: 0 0% 100%;
+    
+    /* Status indicators */
+    --online: 142 71% 45%;
+    --online-foreground: 0 0% 100%;
+    --offline: 220 15% 60%;
+    --offline-foreground: 0 0% 100%;
+    --busy: 38 92% 50%;
+    --busy-foreground: 0 0% 100%;
+    --away: 38 92% 50%;
+    --away-foreground: 0 0% 100%;
+    
+    /* Gender colors */
+    --male: 210 90% 50%;
+    --female: 330 81% 60%;
+
+    /* Theme gradients - uses primary color only */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.85));
+    --gradient-hero: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--secondary)) 100%);
+    --gradient-aurora: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.8));
+    --shadow-soft: 0 4px 20px -4px hsl(var(--foreground) / 0.08);
+    --shadow-card: 0 8px 32px -8px hsl(var(--foreground) / 0.1);
+    --shadow-glow: 0 0 40px hsl(var(--primary) / 0.25);
+
+    /* Sidebar - Aurora dark theme */
+    --sidebar-background: 230 35% 15%;
+    --sidebar-foreground: 200 50% 95%;
+    --sidebar-primary: 174 72% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 270 40% 25%;
+    --sidebar-accent-foreground: 200 50% 95%;
+    --sidebar-border: 230 30% 25%;
+    --sidebar-ring: 174 72% 50%;
+  }
+
+  .dark {
+    /* Aurora Theme - Dark Mode */
+    /* Deep cosmic night sky background */
+    --background: 230 35% 8%;
+    --foreground: 200 50% 95%;
+
+    /* Cards with aurora glow */
+    --card: 230 30% 12%;
+    --card-foreground: 200 50% 95%;
+
+    --popover: 230 35% 10%;
+    --popover-foreground: 200 50% 95%;
+
+    /* Primary - Aurora Teal/Cyan (glowing) */
+    --primary: 174 72% 50%;
+    --primary-foreground: 230 35% 8%;
+    --primary-glow: 174 80% 60%;
+
+    /* Secondary - Aurora Purple */
+    --secondary: 270 45% 20%;
+    --secondary-foreground: 270 60% 80%;
+
+    /* Muted - Deep cosmic grey */
+    --muted: 230 25% 18%;
+    --muted-foreground: 220 20% 65%;
+
+    /* Accent - Aurora Green */
+    --accent: 160 70% 45%;
+    --accent-foreground: 230 35% 8%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 230 25% 18%;
+    --input: 230 25% 18%;
+    --ring: 174 72% 50%;
+
+    /* Semantic Status Colors - Dark mode */
+    --success: 142 71% 50%;
+    --success-foreground: 230 35% 8%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 230 35% 8%;
+    --info: 210 90% 55%;
+    --info-foreground: 230 35% 8%;
+    
+    /* Status indicators */
+    --online: 142 71% 50%;
+    --online-foreground: 230 35% 8%;
+    --offline: 220 20% 50%;
+    --offline-foreground: 0 0% 100%;
+    --busy: 38 92% 55%;
+    --busy-foreground: 230 35% 8%;
+    --away: 38 92% 55%;
+    --away-foreground: 230 35% 8%;
+    
+    /* Gender colors */
+    --male: 210 90% 55%;
+    --female: 330 81% 65%;
+
+    /* Theme gradients - dark mode - uses primary color only */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.85));
+    --gradient-hero: linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--secondary)) 100%);
+    --gradient-aurora: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.8));
+    --shadow-soft: 0 4px 20px -4px hsl(0 0% 0% / 0.4);
+    --shadow-card: 0 8px 32px -8px hsl(0 0% 0% / 0.5);
+    --shadow-glow: 0 0 40px hsl(var(--primary) / 0.35);
+
+    /* Sidebar - Deep aurora */
+    --sidebar-background: 230 40% 10%;
+    --sidebar-foreground: 200 50% 95%;
+    --sidebar-primary: 174 72% 50%;
+    --sidebar-primary-foreground: 230 35% 8%;
+    --sidebar-accent: 270 40% 22%;
+    --sidebar-accent-foreground: 200 50% 95%;
+    --sidebar-border: 230 30% 18%;
+    --sidebar-ring: 174 72% 50%;
+  }
+}
+
+/* ========================================
+   RTL (Right-to-Left) LANGUAGE SUPPORT
+   ======================================== */
+
+@layer base {
+  /* RTL-specific styles */
+  [dir="rtl"] {
+    direction: rtl;
+    text-align: right;
+  }
+
+  [dir="rtl"] .rtl\:text-right {
+    text-align: right;
+  }
+
+  [dir="rtl"] .rtl\:text-left {
+    text-align: left;
+  }
+
+  /* RTL flip for icons and directional elements */
+  [dir="rtl"] .rtl\:flip {
+    transform: scaleX(-1);
+  }
+
+  /* RTL spacing adjustments */
+  [dir="rtl"] .rtl\:space-x-reverse > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-x-reverse: 1;
+  }
+
+  /* RTL margin adjustments */
+  [dir="rtl"] .rtl\:ml-auto {
+    margin-right: auto;
+    margin-left: 0;
+  }
+
+  [dir="rtl"] .rtl\:mr-auto {
+    margin-left: auto;
+    margin-right: 0;
+  }
+
+  /* Chat message bubbles RTL */
+  [dir="rtl"] .chat-message-sent {
+    margin-left: 0;
+    margin-right: auto;
+    border-bottom-right-radius: 0.25rem;
+    border-bottom-left-radius: 1rem;
+  }
+
+  [dir="rtl"] .chat-message-received {
+    margin-right: 0;
+    margin-left: auto;
+    border-bottom-left-radius: 0.25rem;
+    border-bottom-right-radius: 1rem;
+  }
+
+  /* Flex direction RTL */
+  [dir="rtl"] .rtl\:flex-row-reverse {
+    flex-direction: row-reverse;
+  }
+
+  /* Animations for RTL */
+  [dir="rtl"] .animate-slide-in-right {
+    animation: slideInLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ========================================
+   UNICODE & MULTILINGUAL TEXT SUPPORT
+   Complete Noto Font Coverage for 300+ Languages
+   ======================================== */
+
+@layer base {
+  /* ========================================
+     UNIVERSAL UNICODE TEXT RENDERING
+     ======================================== */
+  .unicode-text {
+    font-family: 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Devanagari', 
+                 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Telugu', 
+                 'Noto Sans Kannada', 'Noto Sans Malayalam', 'Noto Sans Gujarati',
+                 'Noto Sans Gurmukhi', 'Noto Sans Oriya', 'Noto Sans Sinhala',
+                 'Noto Sans Thai', 'Noto Sans Lao', 'Noto Sans Khmer',
+                 'Noto Sans Myanmar', 'Noto Sans Ethiopic', 'Noto Sans Armenian',
+                 'Noto Sans Georgian', 'Noto Sans Hebrew', 'Noto Sans SC',
+                 'Noto Sans TC', 'Noto Sans JP', 'Noto Sans KR',
+                 'Noto Sans Tibetan', 'Noto Sans Mongolian',
+                 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    unicode-bidi: plaintext;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ========================================
+     ARABIC SCRIPT FAMILY
+     Arabic, Persian/Farsi, Urdu, Pashto, Sindhi, Kashmiri, Uyghur, Kurdish (Sorani)
+     ======================================== */
+  .arabic-text,
+  [lang="ar"], [lang="arb"], [lang="arz"], [lang="acm"], [lang="apc"], [lang="ary"], [lang="ars"],
+  [lang="fa"], [lang="pes"], [lang="prs"], /* Persian/Dari */
+  [lang="ur"], /* Urdu */
+  [lang="ps"], [lang="pbt"], [lang="pbu"], /* Pashto */
+  [lang="sd"], /* Sindhi */
+  [lang="ks"], /* Kashmiri */
+  [lang="ug"], /* Uyghur */
+  [lang="ku"], [lang="ckb"], /* Kurdish */
+  [lang="bal"], /* Balochi */
+  [lang="skr"], /* Saraiki */
+  [lang="glk"], /* Gilaki */
+  [lang="mzn"], /* Mazanderani */
+  [lang="azb"] /* South Azerbaijani */ {
+    font-family: 'Noto Sans Arabic', 'Noto Naskh Arabic', 'Amiri', 'Arabic Typesetting', 
+                 'Traditional Arabic', 'Geeza Pro', -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+    letter-spacing: 0;
+    direction: rtl;
+  }
+
+  /* ========================================
+     DEVANAGARI SCRIPT FAMILY
+     Hindi, Marathi, Nepali, Sanskrit, Konkani, Maithili, Bhojpuri, Dogri, Bodo, Awadhi
+     ======================================== */
+  .indic-text,
+  [lang="hi"], [lang="hin"],
+  [lang="mr"], [lang="mar"],
+  [lang="ne"], [lang="npi"],
+  [lang="sa"], [lang="san"],
+  [lang="kok"], /* Konkani */
+  [lang="mai"], /* Maithili */
+  [lang="bho"], /* Bhojpuri */
+  [lang="doi"], /* Dogri */
+  [lang="brx"], /* Bodo */
+  [lang="awa"], /* Awadhi */
+  [lang="mag"], /* Magahi */
+  [lang="raj"], /* Rajasthani */
+  [lang="hne"], /* Chhattisgarhi */
+  [lang="bgc"], /* Haryanvi */
+  [lang="gbm"], /* Garhwali */
+  [lang="kfy"], /* Kumaoni */
+  [lang="mwr"], /* Marwari */
+  [lang="new"] /* Newari */ {
+    font-family: 'Noto Sans Devanagari', 'Mangal', 'Aparajita', 'Kokila',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.7;
+  }
+
+  /* ========================================
+     BENGALI SCRIPT FAMILY
+     Bengali, Assamese, Chakma, Sylheti, Bishnupriya Manipuri
+     ======================================== */
+  [lang="bn"], [lang="ben"],
+  [lang="as"], [lang="asm"],
+  [lang="syl"], /* Sylheti */
+  [lang="bpy"], /* Bishnupriya */ 
+  [lang="ctg"], /* Chittagonian */
+  [lang="rkt"] /* Rangpuri */ {
+    font-family: 'Noto Sans Bengali', 'Vrinda', 'Shonar Bangla', 'Bangla MN',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     TAMIL SCRIPT
+     Tamil
+     ======================================== */
+  [lang="ta"], [lang="tam"] {
+    font-family: 'Noto Sans Tamil', 'Latha', 'Tamil MN', 'InaiMathi',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     TELUGU SCRIPT
+     Telugu
+     ======================================== */
+  [lang="te"], [lang="tel"] {
+    font-family: 'Noto Sans Telugu', 'Gautami', 'Telugu MN', 'Vani',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     KANNADA SCRIPT
+     Kannada, Tulu
+     ======================================== */
+  [lang="kn"], [lang="kan"],
+  [lang="tcy"] /* Tulu */ {
+    font-family: 'Noto Sans Kannada', 'Tunga', 'Kannada MN',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     MALAYALAM SCRIPT
+     Malayalam
+     ======================================== */
+  [lang="ml"], [lang="mal"] {
+    font-family: 'Noto Sans Malayalam', 'Kartika', 'Malayalam MN', 'Rachana',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.9;
+  }
+
+  /* ========================================
+     GUJARATI SCRIPT
+     Gujarati
+     ======================================== */
+  [lang="gu"], [lang="guj"] {
+    font-family: 'Noto Sans Gujarati', 'Shruti', 'Gujarati MT', 'Lohit Gujarati',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     GURMUKHI SCRIPT
+     Punjabi (Eastern)
+     ======================================== */
+  [lang="pa"], [lang="pan"] {
+    font-family: 'Noto Sans Gurmukhi', 'Raavi', 'Gurmukhi MN', 'Lohit Punjabi',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     ODIA SCRIPT
+     Odia/Oriya
+     ======================================== */
+  [lang="or"], [lang="ori"], [lang="ory"] {
+    font-family: 'Noto Sans Oriya', 'Kalinga', 'Oriya MN', 'Lohit Odia',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     SINHALA SCRIPT
+     Sinhala
+     ======================================== */
+  [lang="si"], [lang="sin"] {
+    font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Sinhala MN',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     THAI SCRIPT
+     Thai
+     ======================================== */
+  [lang="th"], [lang="tha"] {
+    font-family: 'Noto Sans Thai', 'Noto Serif Thai', 'Tahoma', 'Leelawadee', 'Thonburi',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.7;
+  }
+
+  /* ========================================
+     LAO SCRIPT
+     Lao
+     ======================================== */
+  [lang="lo"], [lang="lao"] {
+    font-family: 'Noto Sans Lao', 'Phetsarath OT', 'Lao MN',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     KHMER SCRIPT
+     Khmer (Cambodian)
+     ======================================== */
+  [lang="km"], [lang="khm"] {
+    font-family: 'Noto Sans Khmer', 'Khmer OS', 'Khmer MN', 'Leelawadee UI',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 2.0;
+  }
+
+  /* ========================================
+     MYANMAR SCRIPT
+     Burmese, Shan, Mon, Karen languages
+     ======================================== */
+  [lang="my"], [lang="mya"],
+  [lang="shn"], /* Shan */
+  [lang="mnw"], /* Mon */
+  [lang="kar"], [lang="ksw"], [lang="kht"] /* Karen */ {
+    font-family: 'Noto Sans Myanmar', 'Myanmar Text', 'Padauk',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     CHINESE SCRIPTS
+     Mandarin, Cantonese, Wu, Min, Hakka
+     ======================================== */
+  [lang="zh"], [lang="cmn"], [lang="zho"],
+  [lang="zh-CN"], [lang="zh-Hans"],
+  [lang="wuu"], /* Wu/Shanghainese */
+  [lang="hsn"], /* Xiang */
+  [lang="gan"], /* Gan */
+  [lang="hak"] /* Hakka */ {
+    font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Heiti SC',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+
+  [lang="zh-TW"], [lang="zh-Hant"],
+  [lang="yue"], [lang="nan"] /* Cantonese, Min */ {
+    font-family: 'Noto Sans TC', 'Noto Sans HK', 'PingFang TC', 'Microsoft JhengHei',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* ========================================
+     JAPANESE
+     ======================================== */
+  [lang="ja"], [lang="jpn"] {
+    font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* ========================================
+     KOREAN
+     ======================================== */
+  [lang="ko"], [lang="kor"] {
+    font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Gulim',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* ========================================
+     HEBREW SCRIPT
+     Hebrew, Yiddish, Ladino
+     ======================================== */
+  [lang="he"], [lang="heb"],
+  [lang="yi"], [lang="yid"],
+  [lang="lad"] /* Ladino */ {
+    font-family: 'Noto Sans Hebrew', 'Arial Hebrew', 'David', 'Miriam',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.7;
+    direction: rtl;
+  }
+
+  /* ========================================
+     ARMENIAN SCRIPT
+     Armenian
+     ======================================== */
+  [lang="hy"], [lang="hye"] {
+    font-family: 'Noto Sans Armenian', 'Mshtakan', 'Sylfaen',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.7;
+  }
+
+  /* ========================================
+     GEORGIAN SCRIPT
+     Georgian, Mingrelian, Laz
+     ======================================== */
+  [lang="ka"], [lang="kat"],
+  [lang="xmf"], /* Mingrelian */
+  [lang="lzz"] /* Laz */ {
+    font-family: 'Noto Sans Georgian', 'Sylfaen', 'DejaVu Sans',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.7;
+  }
+
+  /* ========================================
+     ETHIOPIC SCRIPT
+     Amharic, Tigrinya, Oromo, Somali (historic), Geez
+     ======================================== */
+  [lang="am"], [lang="amh"],
+  [lang="ti"], [lang="tir"],
+  [lang="om"], [lang="orm"],
+  [lang="gez"] /* Geez */ {
+    font-family: 'Noto Sans Ethiopic', 'Nyala', 'Abyssinica SIL',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     TIBETAN SCRIPT
+     Tibetan, Dzongkha
+     ======================================== */
+  [lang="bo"], [lang="bod"],
+  [lang="dz"], [lang="dzo"] {
+    font-family: 'Noto Sans Tibetan', 'Tibetan Machine Uni', 'Microsoft Himalaya',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 2.2;
+  }
+
+  /* ========================================
+     MONGOLIAN SCRIPT
+     Mongolian (Traditional)
+     ======================================== */
+  [lang="mn"], [lang="mon"] {
+    font-family: 'Noto Sans Mongolian', 'Mongolian Baiti',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     CYRILLIC SCRIPT
+     Russian, Ukrainian, Bulgarian, Serbian, Macedonian, Belarusian, Kazakh, Kyrgyz, Tajik, Uzbek
+     ======================================== */
+  [lang="ru"], [lang="rus"],
+  [lang="uk"], [lang="ukr"],
+  [lang="bg"], [lang="bul"],
+  [lang="sr"], [lang="srp"],
+  [lang="mk"], [lang="mkd"],
+  [lang="be"], [lang="bel"],
+  [lang="kk"], [lang="kaz"],
+  [lang="ky"], [lang="kir"],
+  [lang="tg"], [lang="tgk"],
+  [lang="uz"], [lang="uzb"],
+  [lang="tt"], [lang="tat"],
+  [lang="ba"], [lang="bak"],
+  [lang="cv"], /* Chuvash */
+  [lang="ce"], /* Chechen */
+  [lang="mn-Cyrl"] /* Mongolian Cyrillic */ {
+    font-family: 'Noto Sans', 'Roboto', 'PT Sans', 'DejaVu Sans',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* ========================================
+     GREEK SCRIPT
+     Greek
+     ======================================== */
+  [lang="el"], [lang="ell"] {
+    font-family: 'Noto Sans', 'Roboto', 'Helvetica', 'Arial',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* ========================================
+     AFRICAN SCRIPTS
+     ======================================== */
+  
+  /* Tifinagh - Berber languages (Tamazight, Kabyle) */
+  [lang="ber"], [lang="tzm"], [lang="kab"], [lang="shi"], [lang="rif"] {
+    font-family: 'Noto Sans Tifinagh', 'Hapax Berbère',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.7;
+  }
+
+  /* N'Ko - Mandinka, Bambara, Dyula */
+  [lang="nqo"], [lang="bm"], [lang="dyu"] {
+    font-family: 'Noto Sans NKo', 'Conakry',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+    direction: rtl;
+  }
+
+  /* Vai */
+  [lang="vai"] {
+    font-family: 'Noto Sans Vai',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Adlam - Fulani/Fula */
+  [lang="ff"], [lang="ful"], [lang="fuc"], [lang="fuv"] {
+    font-family: 'Noto Sans Adlam', 'Fulani',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+    direction: rtl;
+  }
+
+  /* Bamum */
+  [lang="bax"] {
+    font-family: 'Noto Sans Bamum',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     SOUTHEAST ASIAN ISLAND SCRIPTS
+     ======================================== */
+  
+  /* Javanese */
+  [lang="jv"], [lang="jav"] {
+    font-family: 'Noto Sans Javanese',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Balinese */
+  [lang="ban"] {
+    font-family: 'Noto Sans Balinese',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.9;
+  }
+
+  /* Sundanese */
+  [lang="su"], [lang="sun"] {
+    font-family: 'Noto Sans Sundanese',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Buginese */
+  [lang="bug"] {
+    font-family: 'Noto Sans Buginese',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Filipino/Tagalog scripts */
+  [lang="tl"], [lang="fil"], [lang="tgl"] {
+    font-family: 'Noto Sans', 'Noto Sans Tagalog',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* ========================================
+     SOUTH ASIAN MINORITY SCRIPTS
+     ======================================== */
+
+  /* Meetei Mayek - Meitei/Manipuri */
+  [lang="mni"] {
+    font-family: 'Noto Sans Meetei Mayek',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Ol Chiki - Santali */
+  [lang="sat"] {
+    font-family: 'Noto Sans Ol Chiki',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Chakma */
+  [lang="ccp"] {
+    font-family: 'Noto Sans Chakma',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.9;
+  }
+
+  /* Lepcha */
+  [lang="lep"] {
+    font-family: 'Noto Sans Lepcha',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Limbu */
+  [lang="lif"] {
+    font-family: 'Noto Sans Limbu',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Syloti Nagri */
+  [lang="syl"] {
+    font-family: 'Noto Sans Syloti Nagri', 'Noto Sans Bengali',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     TAI SCRIPTS
+     ======================================== */
+
+  /* Tai Tham - Tai Lue, Northern Thai (Lanna) */
+  [lang="khb"], [lang="lus"], [lang="nod"] {
+    font-family: 'Noto Sans Tai Tham',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.9;
+  }
+
+  /* Tai Viet - Tai Dam, Tai Don */
+  [lang="blt"], [lang="tdd"] {
+    font-family: 'Noto Sans Tai Viet',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Cham */
+  [lang="cja"], [lang="cjm"] {
+    font-family: 'Noto Sans Cham',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* Kayah Li */
+  [lang="kyu"] {
+    font-family: 'Noto Sans Kayah Li',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+  }
+
+  /* ========================================
+     HMONG SCRIPTS
+     ======================================== */
+  [lang="hmn"], [lang="mww"], [lang="hnj"] {
+    font-family: 'Noto Sans Pahawh Hmong', 'Noto Sans',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.7;
+  }
+
+  /* ========================================
+     AMERICAS INDIGENOUS
+     ======================================== */
+
+  /* Canadian Aboriginal Syllabics - Cree, Inuktitut, Ojibwe */
+  [lang="cr"], [lang="cre"],
+  [lang="iu"], [lang="iku"],
+  [lang="oj"], [lang="oji"] {
+    font-family: 'Noto Sans Canadian Aboriginal', 'Euphemia UCAS',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.7;
+  }
+
+  /* Cherokee */
+  [lang="chr"] {
+    font-family: 'Noto Sans Cherokee', 'Plantagenet Cherokee',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.7;
+  }
+
+  /* ========================================
+     SYRIAC SCRIPT
+     Syriac, Assyrian Neo-Aramaic
+     ======================================== */
+  [lang="syr"], [lang="syc"], [lang="aii"] {
+    font-family: 'Noto Sans Syriac', 'Estrangelo Edessa',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+    direction: rtl;
+  }
+
+  /* ========================================
+     THAANA SCRIPT
+     Dhivehi (Maldivian)
+     ======================================== */
+  [lang="dv"], [lang="div"] {
+    font-family: 'Noto Sans Thaana', 'MV Boli',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.8;
+    direction: rtl;
+  }
+
+  /* ========================================
+     VIETNAMESE (Latin with diacritics)
+     ======================================== */
+  [lang="vi"], [lang="vie"] {
+    font-family: 'Noto Sans', 'Roboto', 'Arial',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* ========================================
+     LATIN SCRIPT LANGUAGES
+     European, African Latin, Turkish, Indonesian, Malay, Swahili, etc.
+     ======================================== */
+  [lang="en"], [lang="es"], [lang="fr"], [lang="de"], [lang="it"], [lang="pt"],
+  [lang="nl"], [lang="pl"], [lang="ro"], [lang="hu"], [lang="cs"], [lang="sk"],
+  [lang="hr"], [lang="sl"], [lang="lt"], [lang="lv"], [lang="et"], [lang="fi"],
+  [lang="sv"], [lang="no"], [lang="da"], [lang="is"], [lang="ga"], [lang="cy"],
+  [lang="eu"], [lang="ca"], [lang="gl"], [lang="ast"],
+  [lang="tr"], [lang="az"], /* Turkish, Azerbaijani (Latin) */
+  [lang="id"], [lang="ms"], /* Indonesian, Malay */
+  [lang="sw"], [lang="swa"], /* Swahili */
+  [lang="yo"], [lang="ig"], [lang="ha"], /* Yoruba, Igbo, Hausa */
+  [lang="zu"], [lang="xh"], [lang="af"], /* Zulu, Xhosa, Afrikaans */
+  [lang="mg"], [lang="ln"], [lang="rw"], [lang="rn"], /* Malagasy, Lingala, Kinyarwanda, Kirundi */
+  [lang="ny"], [lang="sn"], [lang="ts"], [lang="tn"], /* Chichewa, Shona, Tsonga, Tswana */
+  [lang="wo"], [lang="fon"], [lang="tw"], [lang="ee"], /* Wolof, Fon, Twi, Ewe */
+  [lang="ht"], /* Haitian Creole */
+  [lang="ceb"], [lang="ilo"], /* Cebuano, Ilocano */
+  [lang="sm"], [lang="to"], [lang="mi"], [lang="haw"] /* Samoan, Tongan, Maori, Hawaiian */ {
+    font-family: 'Noto Sans', 'Roboto', 'Inter', 'Helvetica', 'Arial',
+                 -apple-system, system-ui, sans-serif;
+    line-height: 1.6;
+  }
+}
+
+/* ========================================
+   IME (Input Method Editor) SUPPORT
+   ======================================== */
+
+@layer base {
+  /* IME composition styling */
+  input[lang],
+  textarea[lang],
+  [contenteditable][lang] {
+    ime-mode: auto;
+  }
+
+  /* Chinese/Japanese/Korean IME */
+  input[lang="zh"],
+  input[lang="ja"],
+  input[lang="ko"],
+  textarea[lang="zh"],
+  textarea[lang="ja"],
+  textarea[lang="ko"] {
+    ime-mode: active;
+  }
+
+  /* IME composition text styling */
+  input::placeholder,
+  textarea::placeholder {
+    color: hsl(var(--muted-foreground));
+    opacity: 0.7;
+  }
+
+  /* Composition text underline */
+  .ime-composing {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    /* Universal box sizing */
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Safe area support for notched devices */
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    /* Prevent rubber-banding on iOS */
+    height: 100%;
+    overflow: hidden;
+    /* Universal text rendering */
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    /* Prevent pull-to-refresh and overscroll */
+    overscroll-behavior: none;
+    /* Prevent text selection on mobile (allow in inputs) */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    /* Smooth scrolling - with fallback */
+    -webkit-overflow-scrolling: touch;
+    /* Full height for native apps */
+    height: 100%;
+    overflow: auto;
+    /* Prevent iOS zoom on input focus */
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Better text rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* Ensure text is always visible */
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--background));
+    /* Minimum readable font size */
+    font-size: 16px; /* IE11 / Legacy Edge fallback */
+    font-size: max(16px, 1rem);
+    line-height: 1.5;
+    /* Universal word break */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    -ms-hyphens: auto;
+    hyphens: auto;
+  }
+
+  #root {
+    height: 100%;
+    overflow: auto;
+    /* Ensure minimum contrast */
+    isolation: isolate;
+  }
+
+  /* Allow text selection in inputs and textareas */
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+    /* Prevent zoom on iOS when focusing inputs - use 16px minimum */
+    font-size: 16px; /* IE11 / Legacy Edge fallback */
+    font-size: max(16px, 1rem) !important;
+    /* Better text rendering in inputs */
+    -webkit-font-smoothing: antialiased;
+    /* Readable placeholder text */
+    color: hsl(var(--foreground));
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    /* Ensure headings are visible */
+    color: hsl(var(--foreground));
+    /* Prevent text overflow */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Ensure links are visible */
+  a {
+    color: hsl(var(--primary));
+    text-decoration-skip-ink: auto;
+  }
+
+  /* Ensure buttons are visible and tappable */
+  button, [role="button"] {
+    color: inherit;
+    cursor: pointer;
+  }
+
+  /* Only enforce min tap target on standalone buttons, not inline/small ones */
+  button:not([class*="h-6"]):not([class*="h-7"]):not([class*="h-8"]):not([class*="h-9"]):not([class*="w-7"]):not([class*="w-8"]):not([class*="p-0"]):not([class*="p-1"]):not([class*="p-2"]):not([class*="inline"]) {
+    min-height: 36px;
+  }
+
+  /* Hide scrollbars on mobile for cleaner look */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Show scrollbars on desktop */
+  @media (hover: hover) and (pointer: fine) {
+    ::-webkit-scrollbar {
+      display: block;
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: hsl(var(--muted));
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: hsl(var(--muted-foreground) / 0.3);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: hsl(var(--muted-foreground) / 0.5);
+    }
+  }
+
+  /* Firefox scrollbar support */
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted));
+    }
+    @media (hover: none) and (pointer: coarse) {
+      * { scrollbar-width: none; }
+    }
+  }
+
+  /* Disable tap highlight on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Focus-visible for keyboard accessibility (WCAG 2.1) */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+
+  /* Skip to content link for screen readers */
+  .skip-to-content {
+    position: absolute;
+    top: -100%;
+    left: 0;
+    z-index: 9999;
+    padding: 0.75rem 1.5rem;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 0 0 var(--radius) 0;
+  }
+  .skip-to-content:focus {
+    top: 0;
+  }
+
+  .ios-notch {
+    /* Extra padding for notch area */
+  }
+
+  /* Android-specific styles */
+  .android-layout {
+    /* Android-specific adjustments */
+  }
+
+  /* Touch-friendly styles */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+
+  /* Native app container */
+  .native-container {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    min-height: 100dvh;
+  }
+
+  /* Ensure images are visible */
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Ensure SVGs are visible */
+  svg {
+    display: block;
+    max-width: 100%;
+    fill: currentColor;
+  }
+
+  /* Universal focus styles for accessibility */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Skip focus outline for mouse users */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Ensure tables are readable */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 0.5rem;
+  }
+
+  /* Ensure lists are visible */
+  ul, ol {
+    list-style-position: inside;
+  }
+}
+
+/* ========================================
+   MOBILE-NATIVE LAYOUT OVERRIDES
+   Borderless cards, tighter spacing on small screens
+   ======================================== */
+
+@media (max-width: 767px) {
+  /* Mobile-friendly border radius */
+  :root {
+    --radius: 0.625rem;
+  }
+
+  /* Thick, visible borders on mobile for clear section separation */
+  .border,
+  [class*="border-"] {
+    border-width: 2px;
+  }
+
+  /* Ensure card/section borders are clearly visible on mobile */
+  .border-border,
+  .border-border\/40,
+  .border-border\/50 {
+    border-color: hsl(var(--border) / 0.7);
+  }
+
+  /* Tighter section spacing on mobile */
+  main {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  /* Dialogs and sheets take full width on mobile */
+  [role="dialog"] {
+    max-width: calc(100vw - 1rem) !important;
+    margin: 0.5rem;
+  }
+
+  /* Badges: smaller on mobile */
+  [class*="badge"] {
+    font-size: 0.625rem;
+  }
+
+  /* Reduce heading sizes on mobile */
+  h1 {
+    font-size: 1.25rem !important;
+    line-height: 1.3;
+  }
+
+  h2 {
+    font-size: 1rem !important;
+    line-height: 1.35;
+  }
+
+  h3 {
+    font-size: 0.875rem !important;
+    line-height: 1.4;
+  }
+
+  /* Separator / divider lines thick on mobile */
+  [data-orientation="horizontal"] {
+    height: 2px;
+  }
+
+  hr,
+  .border-b,
+  .border-t {
+    border-width: 2px;
+    border-color: hsl(var(--border) / 0.6);
+  }
+
+  /* Input fields get visible thick borders */
+  input,
+  textarea,
+  select,
+  [role="combobox"] {
+    border-width: 2px !important;
+    border-color: hsl(var(--border) / 0.6) !important;
+  }
+
+  /* Tables get visible borders */
+  table th,
+  table td {
+    border-width: 2px;
+    border-color: hsl(var(--border) / 0.5);
+  }
+
+  /* Tabs border */
+  [role="tablist"] {
+    border-width: 2px;
+  }
+
+  /* Prevent horizontal overflow */
+  body,
+  #root {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+}
+
+/* ========================================
+   RESPONSIVE DEVICE UTILITIES
+   ======================================== */
+
+@layer utilities {
+  /* Font utilities */
+  .font-display {
+    font-family: 'Quicksand', system-ui, sans-serif;
+  }
+
+  /* Gradient utilities */
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-aurora {
+    background: var(--gradient-aurora);
+  }
+
+  /* Shadow utilities */
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Aurora glow effect */
+  .aurora-glow {
+    box-shadow: 0 0 16px hsl(var(--primary) / 0.35);
+    will-change: opacity;
+  }
+
+  /* ========================================
+     DEVICE-SPECIFIC UTILITIES
+     ======================================== */
+  
+  /* Touch-friendly button sizes */
+  .btn-touch {
+    @apply min-h-[44px] min-w-[44px] px-4 py-3;
+  }
+
+  /* Safe area padding */
+  .safe-area-inset {
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Responsive container */
+  .container-responsive {
+    @apply w-full mx-auto px-4;
+    max-width: min(100% - 2rem, 1400px);
+  }
+
+  /* Responsive text */
+  .text-responsive {
+    font-size: clamp(1rem, 2.5vw + 0.5rem, 1.25rem);
+    line-height: 1.6;
+  }
+
+  .heading-responsive {
+    font-size: clamp(1.5rem, 5vw + 0.5rem, 3rem);
+    line-height: 1.2;
+  }
+
+  /* Responsive grid */
+  .grid-responsive {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: 1rem;
+  }
+
+  /* Responsive flex */
+  .flex-responsive {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  /* Hide on specific devices */
+  .hide-mobile {
+    @apply hidden md:block;
+  }
+
+  .hide-desktop {
+    @apply block md:hidden;
+  }
+
+  .hide-tablet {
+    @apply block md:hidden lg:block;
+  }
+
+  /* Show on specific devices */
+  .show-mobile-only {
+    @apply block sm:hidden;
+  }
+
+  .show-tablet-only {
+    @apply hidden md:block lg:hidden;
+  }
+
+  .show-desktop-only {
+    @apply hidden lg:block;
+  }
+
+  /* Responsive spacing */
+  .space-responsive {
+    @apply space-y-4 md:space-y-6 lg:space-y-8;
+  }
+
+  .gap-responsive {
+    @apply gap-3 sm:gap-4 md:gap-6 lg:gap-8;
+  }
+
+  .p-responsive {
+    @apply p-3 sm:p-4 md:p-6 lg:p-8;
+  }
+
+  .px-responsive {
+    @apply px-4 sm:px-6 md:px-8 lg:px-12;
+  }
+
+  .py-responsive {
+    @apply py-4 sm:py-6 md:py-8 lg:py-12;
+  }
+
+  /* Touch device optimizations */
+  @media (hover: none) and (pointer: coarse) {
+    .touch-larger {
+      @apply text-lg p-4;
+    }
+    
+    .touch-scroll {
+      -webkit-overflow-scrolling: touch;
+      overflow-y: auto;
+    }
+  }
+
+  /* Mouse/desktop optimizations */
+  @media (hover: hover) and (pointer: fine) {
+    .hover-effects {
+      @apply transition-all duration-200 hover:scale-[1.02];
+    }
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .motion-safe-animate {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
+  /* High contrast mode */
+  @media (prefers-contrast: high) {
+    .contrast-adaptive {
+      @apply border-2 border-foreground;
+    }
+  }
+
+  /* Print styles */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    
+    .print-only {
+      display: block !important;
+    }
+  }
+
+  /* Animations */
+  .animate-slide-up {
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out;
+  }
+
+  .animate-bounce-subtle {
+    animation: bounceSubtle 2s ease-in-out infinite;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-shake {
+    animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+
+  .animate-pulse-soft {
+    animation: pulseSoft 2s ease-in-out infinite;
+  }
+
+  .animate-aurora {
+    animation: auroraShift 8s ease-in-out infinite;
+  }
+
+  /* Aurora background blob animations */
+  .animate-aurora-1 {
+    animation: aurora-1 15s ease-in-out infinite;
+  }
+
+  .animate-aurora-2 {
+    animation: aurora-2 18s ease-in-out infinite;
+  }
+
+  .animate-aurora-3 {
+    animation: aurora-3 20s ease-in-out infinite;
+  }
+
+  .animate-aurora-4 {
+    animation: aurora-4 16s ease-in-out infinite;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bounceSubtle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-4px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes pulseSoft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Aurora background animations */
+@keyframes aurora-1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.2;
+  }
+  25% {
+    transform: translate(50px, -30px) scale(1.1);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translate(20px, 40px) scale(0.95);
+    opacity: 0.18;
+  }
+  75% {
+    transform: translate(-30px, 20px) scale(1.05);
+    opacity: 0.22;
+  }
+}
+
+@keyframes aurora-2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.25;
+  }
+  33% {
+    transform: translate(-40px, 50px) scale(1.15);
+    opacity: 0.3;
+  }
+  66% {
+    transform: translate(30px, -20px) scale(0.9);
+    opacity: 0.2;
+  }
+}
+
+@keyframes aurora-3 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.15;
+  }
+  50% {
+    transform: translate(-60px, -40px) scale(1.2);
+    opacity: 0.2;
+  }
+}
+
+@keyframes aurora-4 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.15;
+  }
+  40% {
+    transform: translate(40px, 30px) scale(1.1);
+    opacity: 0.2;
+  }
+  80% {
+    transform: translate(-20px, -50px) scale(0.95);
+    opacity: 0.12;
+  }
+}
+
+@keyframes auroraShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes confettiFall {
+  0% {
+    transform: translateY(-100vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@layer utilities {
+  .animate-marquee {
+    animation: marquee 20s linear infinite;
+  }
+  .animate-confetti-fall {
+    animation: confettiFall 3s ease-out forwards;
+  }
+
+  .animate-bounce-in {
+    animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+}
+
+/* ========================================
+   ACCESSIBILITY UTILITIES
+   ======================================== */
+
+@layer utilities {
+  /* Screen reader only */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* Focus visible styles */
+  .focus-visible-ring {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+  }
+
+  /* Skip to main content link */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:p-4 focus:bg-primary focus:text-primary-foreground focus:rounded-lg;
+  }
+
+  /* High contrast text */
+  .high-contrast {
+    @apply text-foreground font-medium;
+  }
+
+  /* Keyboard navigation highlight */
+  .keyboard-focus:focus-visible {
+    @apply ring-2 ring-primary ring-offset-2 outline-none;
+  }
+}
+
+/* ========================================
+   PERFORMANCE OPTIMIZATIONS
+   ======================================== */
+
+@layer utilities {
+  /* GPU acceleration */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+  }
+
+  /* Lazy loading placeholder */
+  .lazy-placeholder {
+    @apply bg-muted animate-pulse;
+  }
+
+  /* Optimized images */
+  .img-optimized {
+    @apply object-cover;
+    image-rendering: -webkit-optimize-contrast;
+  }
+
+  /* Smooth transitions with reduced motion support */
+  .transition-smooth {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .transition-smooth {
+      transition: none;
+    }
+  }
+}
+
+/* ========================================
+   SCROLLBAR CUSTOMIZATION
+   ======================================== */
+
+@layer utilities {
+  /* Custom scrollbar - visible on desktop */
+  @media (hover: hover) and (pointer: fine) {
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      @apply bg-muted rounded-full;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      @apply bg-muted-foreground/30 rounded-full;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      @apply bg-muted-foreground/50;
+    }
+  }
+
+  /* Thin scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted));
+  }
+
+  /* Hide scrollbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ========================================
+   DARK/LIGHT MODE TRANSITIONS
+   ======================================== */
+
+@layer base {
+  html {
+    color-scheme: dark light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html:not(.dark) {
+    color-scheme: light;
+  }
+
+  /* Smooth theme transition */
+  html.theme-transitioning,
+  html.theme-transitioning *,
+  html.theme-transitioning *::before,
+  html.theme-transitioning *::after {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
+  }
+}
+
+/* ========================================
+   NATIVE APP SPECIFIC STYLES
+   ======================================== */
+
+@layer utilities {
+  /* iOS specific */
+  .ios-bounce {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ios-no-bounce {
+    overscroll-behavior: none;
+  }
+
+  /* Android specific */
+  .android-ripple {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Native status bar area */
+  .status-bar-padding {
+    padding-top: env(safe-area-inset-top, 20px);
+  }
+
+  /* Native navigation bar area */
+  .nav-bar-padding {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+
+  /* Full height accounting for safe areas */
+  .full-height-safe {
+    height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+
+  /* Dynamic viewport height */
+  .h-dvh {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .min-h-dvh {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .max-h-dvh {
+    max-height: 100vh;
+    max-height: 100dvh;
+  }
+}
+
+/* ========================================
+   CROSS-BROWSER COMPATIBILITY
+   ======================================== */
+
+@layer base {
+  /* Normalize box-sizing across all browsers */
+  *, *::before, *::after {
+    box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+  }
+
+  /* Firefox-specific focus styles */
+  ::-moz-focus-inner {
+    border: 0;
+    padding: 0;
+  }
+
+  /* IE/Edge input placeholder styling */
+  ::-ms-input-placeholder {
+    color: hsl(var(--muted-foreground));
+    opacity: 1;
+  }
+
+  /* Webkit input placeholder styling */
+  ::-webkit-input-placeholder {
+    color: hsl(var(--muted-foreground));
+    opacity: 1;
+  }
+
+  /* Firefox placeholder styling */
+  ::-moz-placeholder {
+    color: hsl(var(--muted-foreground));
+    opacity: 1;
+  }
+
+  /* Standard placeholder styling */
+  ::placeholder {
+    color: hsl(var(--muted-foreground));
+    opacity: 1;
+  }
+
+  /* IE/Edge clear button */
+  ::-ms-clear {
+    display: none;
+  }
+
+  /* Webkit search cancel button */
+  ::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Firefox number input spinners */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  /* Webkit number input spinners */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+
+  /* Safari date input fixes */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  /* Legacy browser font smoothing */
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* IE/Edge flexbox fixes */
+  .flex-fix {
+    flex-shrink: 0;
+  }
+
+  /* Safari flexbox gap fallback */
+  @supports not (gap: 1rem) {
+    .flex-gap > * + * {
+      margin-left: 1rem;
+    }
+    .flex-gap-y > * + * {
+      margin-top: 1rem;
+    }
+  }
+
+  /* Firefox button padding fix */
+  button::-moz-focus-inner {
+    padding: 0;
+    border: 0;
+  }
+
+  /* Safari button appearance fix */
+  button,
+  [type="button"],
+  [type="reset"],
+  [type="submit"] {
+    -webkit-appearance: button;
+    appearance: button;
+  }
+
+  /* IE/Edge select arrow hiding */
+  select::-ms-expand {
+    display: none;
+  }
+
+  /* Webkit autofill styling */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-text-fill-color: hsl(var(--foreground));
+    -webkit-box-shadow: 0 0 0px 1000px hsl(var(--input)) inset;
+    box-shadow: 0 0 0px 1000px hsl(var(--input)) inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+}
+
+@layer utilities {
+  /* Cross-browser flexbox utilities */
+  .flex-compat {
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
+    display: flex;
+  }
+
+  .flex-center-compat {
+    display: -webkit-box;
+    display: -webkit-flex;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -webkit-align-items: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    -webkit-justify-content: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+  }
+
+  /* Cross-browser grid utilities */
+  .grid-compat {
+    display: -ms-grid;
+    display: grid;
+  }
+
+  /* Cross-browser transform utilities */
+  .transform-compat {
+    -webkit-transform: translateZ(0);
+    -moz-transform: translateZ(0);
+    -ms-transform: translateZ(0);
+    -o-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+
+  /* Cross-browser transition utilities */
+  .transition-compat {
+    -webkit-transition: all 0.3s ease;
+    -moz-transition: all 0.3s ease;
+    -o-transition: all 0.3s ease;
+    transition: all 0.3s ease;
+  }
+
+  /* Cross-browser animation utilities */
+  .animate-compat {
+    -webkit-animation-fill-mode: both;
+    -moz-animation-fill-mode: both;
+    -o-animation-fill-mode: both;
+    animation-fill-mode: both;
+  }
+
+  /* Cross-browser opacity utilities */
+  .opacity-compat {
+    -webkit-opacity: 1;
+    -moz-opacity: 1;
+    opacity: 1;
+    filter: alpha(opacity=100);
+  }
+
+  /* Cross-browser border-radius utilities */
+  .rounded-compat {
+    -webkit-border-radius: var(--radius);
+    -moz-border-radius: var(--radius);
+    border-radius: var(--radius);
+  }
+
+  /* Cross-browser box-shadow utilities */
+  .shadow-compat {
+    -webkit-box-shadow: var(--shadow-soft);
+    -moz-box-shadow: var(--shadow-soft);
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* Cross-browser background utilities */
+  .bg-cover-compat {
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
+  }
+
+  /* Cross-browser backdrop blur */
+  .backdrop-blur-compat {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+
+  @supports not (backdrop-filter: blur(8px)) {
+    .backdrop-blur-compat {
+      background-color: hsl(var(--background) / 0.95);
+    }
+  }
+
+  /* Cross-browser sticky positioning */
+  .sticky-compat {
+    position: -webkit-sticky;
+    position: sticky;
+  }
+
+  /* Cross-browser appearance reset */
+  .appearance-none-compat {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+
+  /* Cross-browser user-select */
+  .select-none-compat {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  .select-text-compat {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+
+  /* Cross-browser pointer-events */
+  .pointer-events-none-compat {
+    pointer-events: none;
+  }
+
+  /* Cross-browser object-fit */
+  .object-cover-compat {
+    -o-object-fit: cover;
+    object-fit: cover;
+  }
+
+  .object-contain-compat {
+    -o-object-fit: contain;
+    object-fit: contain;
+  }
+
+  /* Cross-browser text overflow */
+  .truncate-compat {
+    overflow: hidden;
+    -o-text-overflow: ellipsis;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Cross-browser line clamp */
+  .line-clamp-2-compat {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3-compat {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Cross-browser aspect ratio fallback */
+  .aspect-video-compat {
+    aspect-ratio: 16 / 9;
+  }
+
+  @supports not (aspect-ratio: 16 / 9) {
+    .aspect-video-compat {
+      position: relative;
+      padding-bottom: 56.25%;
+    }
+    .aspect-video-compat > * {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  .aspect-square-compat {
+    aspect-ratio: 1 / 1;
+  }
+
+  @supports not (aspect-ratio: 1 / 1) {
+    .aspect-square-compat {
+      position: relative;
+      padding-bottom: 100%;
+    }
+    .aspect-square-compat > * {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  /* Cross-browser gap fallback for flexbox */
+  .gap-compat {
+    gap: 1rem;
+  }
+
+  @supports not (gap: 1rem) {
+    .gap-compat {
+      margin: -0.5rem;
+    }
+    .gap-compat > * {
+      margin: 0.5rem;
+    }
+  }
+
+  /* Cross-browser min/max content */
+  .w-max-compat {
+    width: -webkit-max-content;
+    width: -moz-max-content;
+    width: max-content;
+  }
+
+  .w-min-compat {
+    width: -webkit-min-content;
+    width: -moz-min-content;
+    width: min-content;
+  }
+
+  /* Cross-browser fit-content */
+  .w-fit-compat {
+    width: -webkit-fit-content;
+    width: -moz-fit-content;
+    width: fit-content;
+  }
+}
+
+/* ========================================
+   BROWSER-SPECIFIC FIXES
+   ======================================== */
+
+/* Safari-specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Fix 100vh issue on Safari iOS */
+  .h-screen-safari {
+    height: -webkit-fill-available;
+  }
+  
+  /* Fix flexbox issues */
+  .safari-flex-fix {
+    flex-basis: auto;
+  }
+}
+
+/* Firefox-specific fixes */
+@-moz-document url-prefix() {
+  /* Firefox scrollbar styling */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  }
+  
+  /* Firefox button fix */
+  button {
+    line-height: normal;
+  }
+}
+
+/* IE11 and Edge Legacy fixes */
+@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+  /* IE11 flexbox fixes */
+  .ie-flex-fix {
+    flex: 1 0 auto;
+  }
+  
+  /* IE11 grid fallback */
+  .ie-grid-fallback {
+    display: block;
+  }
+}
+
+/* Edge Legacy fixes */
+@supports (-ms-ime-align: auto) {
+  .edge-fix {
+    font-feature-settings: normal;
+  }
+}
+
+/* Samsung Internet Browser fixes */
+@supports (-webkit-overflow-scrolling: touch) {
+  .samsung-fix {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ========================================
+   LEGACY BROWSER FALLBACKS
+   ======================================== */
+
+/* CSS Custom Properties fallback for very old browsers */
+@supports not (--custom: property) {
+  :root {
+    /* Fallback colors for browsers without CSS custom properties */
+  }
+  
+  body {
+    background-color: #f5f7fa;
+    color: #1a1f2e;
+  }
+  
+  .dark body {
+    background-color: #0f1419;
+    color: #e5f0f5;
+  }
+}
+
+/* Grid fallback for older browsers */
+@supports not (display: grid) {
+  .grid-fallback {
+    display: block;
+  }
+  
+  .grid-fallback > * {
+    display: inline-block;
+    vertical-align: top;
+  }
+}
+
+/* Flexbox fallback for very old browsers */
+@supports not (display: flex) {
+  .flex-fallback {
+    display: block;
+  }
+  
+  .flex-fallback::after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+  
+  .flex-fallback > * {
+    float: left;
+  }
+}
+
+/* ========================================
+   PROGRESSIVE ENHANCEMENT
+   ======================================== */
+
+/* Container queries (progressive enhancement) */
+@supports (container-type: inline-size) {
+  .container-query {
+    container-type: inline-size;
+  }
+  
+  @container (min-width: 400px) {
+    .container-sm\:flex-row {
+      flex-direction: row;
+    }
+  }
+  
+  @container (min-width: 600px) {
+    .container-md\:grid-cols-2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+}
+
+/* Subgrid (progressive enhancement) */
+@supports (grid-template-columns: subgrid) {
+  .subgrid-compat {
+    display: grid;
+    grid-template-columns: subgrid;
+  }
+}
+
+/* CSS nesting (progressive enhancement) */
+@supports (selector(&)) {
+  .nesting-compat {
+    & > * {
+      margin: 0;
+    }
+  }
+}
+
+/* Color-mix (progressive enhancement) */
+@supports (color: color-mix(in srgb, red, blue)) {
+  .color-mix-compat {
+    --hover-color: color-mix(in srgb, hsl(var(--primary)) 90%, black);
+  }
+}
+
+/* ========================================
+   ROCKET GIFT ANIMATION
+   ======================================== */
+
+@keyframes rocket-fly {
+  0%, 100% {
+    transform: translateX(0) translateY(0) rotate(-5deg);
+  }
+  25% {
+    transform: translateX(5px) translateY(-3px) rotate(0deg);
+  }
+  50% {
+    transform: translateX(0) translateY(-5px) rotate(5deg);
+  }
+  75% {
+    transform: translateX(-3px) translateY(-2px) rotate(0deg);
+  }
+}
+
+.animate-rocket-fly {
+  animation: rocket-fly 2s ease-in-out infinite;
+}
+
+/* ========================================
+   PHASE 1 — FOUNDATION CSS
+   Fluid typography, spacing, OS font scaling
+   ======================================== */
+
+/* Fix 1: dvh/svh fallback — 100vh BEFORE 100dvh (already correct in existing .h-dvh etc.) */
+
+/* Fix 4: Fluid typography scale via CSS custom properties */
+:root {
+  --font-xs: clamp(0.6875rem, 0.625rem + 0.25vw, 0.75rem);
+  --font-sm: clamp(0.75rem, 0.7rem + 0.3vw, 0.875rem);
+  --font-base: clamp(0.875rem, 0.8rem + 0.4vw, 1rem);
+  --font-lg: clamp(1rem, 0.9rem + 0.5vw, 1.125rem);
+  --font-xl: clamp(1.125rem, 1rem + 0.6vw, 1.375rem);
+  --font-2xl: clamp(1.25rem, 1.1rem + 0.75vw, 1.75rem);
+  --font-3xl: clamp(1.5rem, 1.25rem + 1.25vw, 2.25rem);
+  --font-4xl: clamp(1.875rem, 1.5rem + 1.875vw, 3rem);
+}
+
+/* Fix 5: Fluid spacing scale via CSS custom properties */
+:root {
+  --space-xs: clamp(0.25rem, 0.2rem + 0.25vw, 0.5rem);
+  --space-sm: clamp(0.5rem, 0.4rem + 0.5vw, 0.75rem);
+  --space-md: clamp(0.75rem, 0.6rem + 0.75vw, 1.25rem);
+  --space-lg: clamp(1rem, 0.8rem + 1vw, 1.75rem);
+  --space-xl: clamp(1.5rem, 1.2rem + 1.5vw, 2.5rem);
+  --space-2xl: clamp(2rem, 1.5rem + 2.5vw, 4rem);
+}
+
+/* Fix 6: OS-level font scaling — use 100% not fixed px on html */
+html {
+  font-size: 100%;
+}
+
+/* ========================================
+   PHASE 2 — HTML & Theme (CSS vars)
+   ======================================== */
+
+/* Fix 10: --keyboard-height, --vw, --vh defaults */
+:root {
+  --keyboard-height: 0px;
+  --vw: 1vw;
+  --vh: 1vh;
+}
+
+/* ========================================
+   PHASE 3 — RESPONSIVE GRID SAFETY
+   ======================================== */
+
+/* Fix 12: Auto-collapse bare grid-cols on small screens */
+@media (max-width: 479px) {
+  .grid-cols-3:not([class*="sm:"]):not([class*="md:"]),
+  .grid-cols-4:not([class*="sm:"]):not([class*="md:"]),
+  .grid-cols-5:not([class*="sm:"]):not([class*="md:"]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 374px) {
+  .grid-cols-2:not([class*="sm:"]):not([class*="md:"]),
+  .grid-cols-3:not([class*="sm:"]):not([class*="md:"]),
+  .grid-cols-4:not([class*="sm:"]):not([class*="md:"]),
+  .grid-cols-5:not([class*="sm:"]):not([class*="md:"]) {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@layer utilities {
+  /* Fix 13: Auto-fit grid utilities */
+  .auto-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    gap: var(--space-md, 1rem);
+  }
+
+  .auto-grid-sm {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: var(--space-sm, 0.75rem);
+  }
+
+  .auto-grid-lg {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+    gap: var(--space-lg, 1.25rem);
+  }
+
+  /* Fix 14: Fluid container utility */
+  .fluid-container {
+    width: 100%;
+    max-width: clamp(320px, 90vw, 1400px);
+    margin-inline: auto;
+    padding-inline: clamp(0.75rem, 2vw, 2rem);
+  }
+
+  /* Fix 15: Responsive row — stacks on mobile */
+  .responsive-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md, 1rem);
+  }
+
+  @media (min-width: 768px) {
+    .responsive-row {
+      flex-direction: row;
+    }
+  }
+}
+
+/* ========================================
+   PHASE 4 — MOBILE & TOUCH
+   ======================================== */
+
+@layer utilities {
+  /* Fix 18: Keyboard-aware bottom bar */
+  .keyboard-aware-bottom {
+    bottom: var(--keyboard-height, 0px);
+    bottom: calc(var(--keyboard-height, 0px) + env(safe-area-inset-bottom, 0px));
+    transition: bottom 0.15s ease-out;
+  }
+
+  /* Fix 19: Safe scroll area — prevents collapse on small screens */
+  .scroll-area-safe {
+    min-height: 180px;
+    min-height: max(180px, 20vh);
+  }
+}
+
+/* Fix 20: Mobile landscape compact layout */
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Compact headers */
+  header, [role="banner"] {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+
+  /* Compact nav */
+  nav {
+    padding-top: 0.125rem !important;
+    padding-bottom: 0.125rem !important;
+  }
+
+  /* Make dialogs scrollable in landscape */
+  [role="dialog"] {
+    max-height: 95vh !important;
+    max-height: 95dvh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Reduce oversized headings */
+  h1 { font-size: 1.125rem !important; }
+  h2 { font-size: 1rem !important; }
+
+  /* Tighten spacing */
+  .space-y-4 > * + * { margin-top: 0.5rem !important; }
+  .space-y-6 > * + * { margin-top: 0.75rem !important; }
+}
+
+/* ========================================
+   PHASE 5 — CROSS-BROWSER FIXES
+   ======================================== */
+
+@layer utilities {
+  /* Fix 21: Glass card with solid fallback */
+  .glass-card {
+    background-color: hsl(var(--card) / 0.90);
+    border: 1px solid hsl(var(--border) / 0.5);
+    border-radius: var(--radius);
+  }
+
+  @supports (backdrop-filter: blur(12px)) {
+    .glass-card {
+      background-color: hsl(var(--card) / 0.70);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+  }
+
+  /* Fix 22: Touch-safe button utility */
+  .btn-touch-safe {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Fix 23: Admin content area — prevents ultrawide stretch */
+  .admin-content-area {
+    max-width: 1400px;
+    margin-inline: auto;
+    width: 100%;
+    padding-inline: clamp(0.75rem, 2vw, 2rem);
+  }
+
+  /* Fix 24: Draggable window — full-screen on mobile */
+  .draggable-window-mobile {
+    position: fixed;
+    inset: 0;
+    border-radius: 0;
+    box-shadow: inset 0 0 40px hsl(0 0% 0% / 0.2);
+    z-index: 50;
+  }
+
+  @media (min-width: 768px) {
+    .draggable-window-mobile {
+      position: fixed;
+      inset: auto;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-card);
+    }
+  }
+}
+
+/* ========================================
+   PHASE 6 — ACCESSIBILITY & VISIBILITY
+   ======================================== */
+
+/* Fix 25: Status dots with shape — color-blindness safe */
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.status-dot[data-status="free"] {
+  background-color: hsl(var(--online));
+}
+
+.status-dot[data-status="busy"] {
+  background-color: hsl(var(--busy));
+}
+
+.status-dot[data-status="busy"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: hsl(var(--busy-foreground));
+  transform: translateY(-50%);
+  border-radius: 1px;
+}
+
+.status-dot[data-status="full"] {
+  background-color: hsl(var(--destructive));
+}
+
+.status-dot[data-status="full"]::before,
+.status-dot[data-status="full"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60%;
+  height: 2px;
+  background: hsl(var(--destructive-foreground));
+  border-radius: 1px;
+}
+
+.status-dot[data-status="full"]::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.status-dot[data-status="full"]::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* Fix 26: Bottom sheet styling — dark mode visibility */
+[data-slot="bottom-sheet"] {
+  border-top: 2px solid hsl(var(--primary));
+}
+
+[data-slot="bottom-sheet"]::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: hsl(var(--muted-foreground) / 0.4);
+  border-radius: 2px;
+  margin: 0.5rem auto 0.75rem;
+}
+
+/* Fix 27: Windows High Contrast mode */
+@media (forced-colors: active) {
+  button,
+  [role="button"],
+  a,
+  input,
+  textarea,
+  select {
+    border: 1px solid ButtonText;
+  }
+
+  *:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .status-dot {
+    forced-color-adjust: none;
+  }
+}
+
+/* Fix 28: Reduced motion — global override */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   WhatsApp Admin Theme — cascading styles for all /admin/* pages
+   Applied via .wa-admin wrapper class on AdminNav
+   ═══════════════════════════════════════════════════════════════════ */
+
+.wa-admin {
+  --wa-dark-green: 153 100% 18%;
+  --wa-teal: 168 44% 34%;
+  --wa-light-green: 142 70% 49%;
+  --wa-chat-bg: 34 33% 91%;
+  --wa-sent: 98 55% 88%;
+  --wa-sidebar: 220 12% 13%;
+  --wa-header: 153 100% 18%;
+}
+
+/* Cards → WhatsApp white cards with teal left accent */
+.wa-admin [data-slot="card"],
+.wa-admin .card,
+.wa-admin [class*="CardContent"],
+.wa-admin > main [class*="rounded-lg"][class*="border"] {
+  border-left: 3px solid hsl(var(--wa-teal));
+  box-shadow: 0 1px 3px hsl(0 0% 0% / 0.06);
+}
+
+/* Page titles → WhatsApp dark green */
+.wa-admin h1 {
+  color: hsl(var(--wa-dark-green)) !important;
+  font-weight: 700;
+}
+
+.wa-admin h2,
+.wa-admin h3 {
+  color: hsl(var(--wa-dark-green));
+}
+
+/* Tabs → WhatsApp green active state */
+.wa-admin [role="tablist"] {
+  background: hsl(var(--wa-dark-green));
+  border-radius: 0;
+  padding: 0;
+  border: none;
+}
+
+.wa-admin [role="tab"] {
+  color: hsl(0 0% 100% / 0.7);
+  border-radius: 0;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  padding: 0.625rem 1rem;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.wa-admin [role="tab"][data-state="active"] {
+  color: hsl(0 0% 100%);
+  background: transparent !important;
+  border-bottom-color: hsl(0 0% 100%);
+  box-shadow: none;
+}
+
+.wa-admin [role="tab"]:hover:not([data-state="active"]) {
+  color: hsl(0 0% 100% / 0.9);
+  background: hsl(0 0% 100% / 0.08) !important;
+}
+
+/* Badges → WhatsApp green */
+.wa-admin .badge,
+.wa-admin [class*="Badge"] {
+  font-weight: 600;
+  font-size: 0.6875rem;
+  letter-spacing: 0.01em;
+}
+
+/* Primary action buttons → WhatsApp teal */
+.wa-admin button[class*="bg-primary"],
+.wa-admin [class*="btn-primary"] {
+  background: hsl(var(--wa-teal)) !important;
+}
+
+.wa-admin button[class*="bg-primary"]:hover {
+  background: hsl(var(--wa-dark-green)) !important;
+}
+
+/* Tables → WhatsApp-style clean rows */
+.wa-admin table thead {
+  background: hsl(var(--wa-dark-green));
+}
+
+.wa-admin table thead th {
+  color: hsl(0 0% 100%) !important;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.75rem 1rem;
+  border: none;
+}
+
+.wa-admin table tbody tr {
+  border-bottom: 1px solid hsl(var(--wa-chat-bg));
+  transition: background 0.15s;
+}
+
+.wa-admin table tbody tr:hover {
+  background: hsl(var(--wa-light-green) / 0.06) !important;
+}
+
+.wa-admin table tbody td {
+  padding: 0.625rem 1rem;
+  font-size: 0.8125rem;
+}
+
+/* Stat cards → green gradient accents */
+.wa-admin .wa-stat-card {
+  background: linear-gradient(135deg, hsl(0 0% 100%), hsl(var(--wa-light-green) / 0.04));
+  border-left: 4px solid hsl(var(--wa-teal));
+}
+
+/* Search inputs → WhatsApp-style rounded */
+.wa-admin input[type="text"],
+.wa-admin input[type="search"],
+.wa-admin input[type="email"],
+.wa-admin input[class*="Input"] {
+  border-radius: 1.25rem;
+  background: hsl(0 0% 100%);
+  border: 1px solid hsl(var(--wa-chat-bg));
+  padding-left: 1rem;
+}
+
+.wa-admin input:focus {
+  border-color: hsl(var(--wa-teal));
+  box-shadow: 0 0 0 2px hsl(var(--wa-teal) / 0.15);
+}
+
+/* Select triggers → WhatsApp style */
+.wa-admin [class*="SelectTrigger"] {
+  border-radius: 1.25rem;
+  border-color: hsl(var(--wa-chat-bg));
+  font-size: 0.8125rem;
+}
+
+/* Dialog overlays → subtle green tint */
+.wa-admin [class*="DialogContent"] {
+  border-top: 3px solid hsl(var(--wa-teal));
+}
+
+/* ScrollArea → subtle bg */
+.wa-admin [class*="ScrollArea"] {
+  background: hsl(var(--wa-chat-bg) / 0.3);
+  border-radius: 0.5rem;
+}
+
+/* Skeleton loader → WhatsApp shimmer */
+.wa-admin [class*="Skeleton"] {
+  background: linear-gradient(90deg, hsl(var(--wa-chat-bg)) 25%, hsl(0 0% 96%) 50%, hsl(var(--wa-chat-bg)) 75%);
+  background-size: 200% 100%;
+  animation: wa-shimmer 1.5s infinite;
+}
+
+@keyframes wa-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Progress bars → WhatsApp green */
+.wa-admin [class*="Progress"] [class*="indicator"] {
+  background: hsl(var(--wa-teal));
+}
+
+/* Empty states */
+.wa-admin .text-muted-foreground {
+  color: hsl(220 8% 50%);
+}
+
+/* Chart tooltip → WhatsApp style */
+.wa-admin .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: hsl(0 0% 100%) !important;
+  border: 1px solid hsl(var(--wa-chat-bg)) !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 4px 12px hsl(0 0% 0% / 0.1) !important;
+}
+
+/* Icon containers → Green circle bg (WhatsApp contact-list style) */
+.wa-admin .wa-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: hsl(var(--wa-light-green) / 0.12);
+  color: hsl(var(--wa-dark-green));
+  flex-shrink: 0;
+}
+
+/* Alert/notification cards → WhatsApp style */
+.wa-admin .wa-alert {
+  background: hsl(var(--wa-sent));
+  border-left: 4px solid hsl(var(--wa-teal));
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding: 0.75rem 1rem;
+}
+
+/* Chat bubbles in monitoring */
+.wa-admin .wa-bubble-sent {
+  background: hsl(var(--wa-sent));
+  border-radius: 0.5rem 0.5rem 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  max-width: 80%;
+  margin-left: auto;
+}
+
+.wa-admin .wa-bubble-received {
+  background: hsl(0 0% 100%);
+  border-radius: 0.5rem 0.5rem 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  max-width: 80%;
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.05);
+}
+
+/* Floating action area */
+.wa-admin .wa-fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 40;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: hsl(var(--wa-teal));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px hsl(var(--wa-teal) / 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.wa-admin .wa-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px hsl(var(--wa-teal) / 0.5);
+}
+
+/* List items → WhatsApp contact-list style */
+.wa-admin .wa-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--wa-chat-bg));
+  transition: background 0.15s;
+  cursor: pointer;
+}
+
+.wa-admin .wa-list-item:hover {
+  background: hsl(var(--wa-light-green) / 0.06);
+}
+
+.wa-admin .wa-list-item.active {
+  background: hsl(var(--wa-light-green) / 0.12);
+  border-left: 3px solid hsl(var(--wa-teal));
+}
+
+/* Pill badges for counts */
+.wa-admin .wa-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 625rem;
+  background: hsl(var(--wa-light-green));
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+/* ============================================================
+   Print protection — blocks Cmd/Ctrl+P leakage
+   Pairs with the JS beforeprint handler in ScreenCaptureGuard.
+   ============================================================ */
+@media print {
+  /* Hide the entire app — printing is never allowed. */
+  body * {
+    visibility: hidden !important;
+  }
+  body::before {
+    content: "🔒 This content is protected and cannot be printed.";
+    visibility: visible;
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-family: system-ui, sans-serif;
+    text-align: center;
+    padding: 40px;
+    background: white;
+    color: black;
+  }
+}
+
+/* Hide scrollbar utility (used by admin bottom tab bar) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

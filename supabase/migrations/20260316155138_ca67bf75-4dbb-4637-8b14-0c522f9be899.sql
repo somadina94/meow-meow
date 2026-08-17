@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS chat_pricing_unique_active_currency ON chat_pricing (currency) WHERE is_active = true;

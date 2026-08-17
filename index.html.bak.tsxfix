@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    
+    <!-- Browser Compatibility -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="renderer" content="webkit" />
+    <meta name="HandheldFriendly" content="true" />
+    <meta name="MobileOptimized" content="width" />
+    
+    <!-- App Info -->
+    <title>MEOW MEOW - Find Your Purrfect Match</title>
+    <meta name="description" content="MEOW MEOW is a global friend-making app connecting people through meaningful chat-only conversations. Find your perfect friend worldwide." />
+    <meta name="author" content="MEOW MEOW" />
+    <meta name="keywords" content="friend app, global friends, chat friends, find friends, online friends, international friends" />
+
+    <!-- Mobile App Meta Tags - iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Meow MEOW FRND APP" />
+    
+    <!-- Mobile App Meta Tags - Android/Chrome -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Meow MEOW FRND APP" />
+    
+    <!-- Mobile App Meta Tags - Windows -->
+    <meta name="msapplication-TileColor" content="#0a0d14" />
+    <meta name="msapplication-TileImage" content="/icons/icon-192x192.png" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- Theme Colors -->
+    <meta name="theme-color" content="#0a0d14" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Favicon - All Browsers -->
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
+    <link rel="shortcut icon" href="/favicon.png" />
+    
+    <!-- iOS Icons -->
+    <link rel="apple-touch-icon" href="/icons/icon-180x180.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
+    
+    <!-- Safari Pinned Tab -->
+    <link rel="mask-icon" href="/icons/safari-pinned-tab.svg" color="#0a0d14" />
+    
+    <!-- iOS Splash Screens - iPhone -->
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+    <!-- iOS Splash Screens - iPad -->
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-screen.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="MEOW MEOW - Find Your Purrfect Match" />
+    <meta property="og:description" content="Global friend-making app connecting people through meaningful conversations." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/icons/icon-512x512.png" />
+    <meta property="og:site_name" content="Meow MEOW FRND APP" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@meowmeowapp" />
+    <meta name="twitter:image" content="/icons/icon-512x512.png" />
+
+    <!-- Preconnect to external resources -->
+    <link rel="preconnect" href="https://www.meow-meow.co.in:8443" crossorigin />
+    <link rel="dns-prefetch" href="https://www.meow-meow.co.in:8443" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Font loading with JS fallback for Safari < 12 and older Android -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500&display=swap" /></noscript>
+    <script>
+      // Font loading fallback: if preload onload trick didn't work, load via JS
+      (function(){
+        setTimeout(function(){
+          var fonts = document.querySelectorAll('link[rel="preload"][as="style"]');
+          for (var i = 0; i < fonts.length; i++) {
+            if (fonts[i].rel === 'preload') {
+              fonts[i].rel = 'stylesheet';
+            }
+          }
+        }, 3000);
+      })();
+    </script>
+
+    <!-- Prevent FOUC for light and dark modes -->
+    <script>
+      (function(){
+        try {
+          var stored = localStorage.getItem("theme");
+          var dark;
+          if (stored === "dark" || stored === "light") {
+            dark = stored === "dark";
+          } else {
+            dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          }
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.background = dark ? "#0a0d14" : "#f5f7fa";
+          var metas = document.querySelectorAll('meta[name="theme-color"]');
+          var color = dark ? "#0a0d14" : "#f5f7fa";
+          for (var i = 0; i < metas.length; i++) metas[i].setAttribute("content", color);
+        } catch(e) {
+          // localStorage may throw in private browsing
+        }
+      })();
+    </script>
+
+    <style>
+      :root {
+        --sat: env(safe-area-inset-top);
+        --sar: env(safe-area-inset-right);
+        --sab: env(safe-area-inset-bottom);
+        --sal: env(safe-area-inset-left);
+        --keyboard-height: 0px;
+      }
+      
+      html { visibility: visible; opacity: 1; }
+      
+      body {
+        margin: 0;
+        background: #0a0d14;
+        min-height: 100vh;
+        min-height: 100dvh;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
+      html:not(.dark) body { background: #f5f7fa; }
+      
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+      }
+      html:not(.dark) #root { background: #f5f7fa; }
+      html.dark #root { background: #0a0d14; }
+      
+      .app-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        min-height: 100dvh;
+        background: linear-gradient(135deg, #0a0d14 0%, #111827 100%);
+      }
+      html:not(.dark) .app-loading {
+        background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf3 100%);
+      }
+      
+      html {
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+      }
+      
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      .hide-scrollbar::-webkit-scrollbar { display: none; }
+      
+      .chat-input-bar {
+        bottom: var(--keyboard-height, env(safe-area-inset-bottom));
+      }
+    </style>
+
+    <!-- Cache recovery: clear stale service workers on genuine load failures -->
+    <script>
+      (function() {
+        var APP_MOUNTED_ATTR = 'data-app-mounted';
+        var isAndroid = /Android/i.test(navigator.userAgent);
+        var timeout = isAndroid ? 20000 : 25000;
+
+        function isMounted() {
+          return document.documentElement.getAttribute(APP_MOUNTED_ATTR) === 'true';
+        }
+
+        // Force SW update check on Android
+        if (isAndroid && 'serviceWorker' in navigator) {
+          try {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              regs.forEach(function(r) {
+                if (r.active) r.update();
+              });
+            });
+          } catch(e) {}
+        }
+
+        var timer = setTimeout(function() {
+          var root = document.getElementById('root');
+          if (!root || isMounted()) return;
+
+          // Don't recover on very slow connections
+          try {
+            if (navigator.connection && navigator.connection.effectiveType
+                && navigator.connection.effectiveType.includes('2g')) {
+              return;
+            }
+          } catch(e) {}
+
+          var recoveryKey = 'sw-recovery';
+          var attempts = parseInt(sessionStorage.getItem(recoveryKey) || '0', 10);
+
+          // Allow up to 3 recovery attempts before showing hard-fail
+          if (attempts >= 3) {
+            root.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0d14;color:#fff;font-family:sans-serif;padding:20px;text-align:center"><div><h1 style="font-size:20px;margin-bottom:12px">Loading failed</h1><p style="color:#888;margin-bottom:20px;font-size:14px">The app could not load. This is usually caused by a stale cache or an older browser.</p><button onclick="(async function(){try{if(\'serviceWorker\' in navigator){var r=await navigator.serviceWorker.getRegistrations();await Promise.all(r.map(function(r){return r.unregister()}))}if(\'caches\' in window){var k=await caches.keys();await Promise.all(k.map(function(k){return caches.delete(k)}))}sessionStorage.clear();location.reload()}catch(e){location.reload()}})()" style="padding:12px 28px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;min-height:44px">Clear Cache & Reload</button></div></div>';
+            return;
+          }
+
+          sessionStorage.setItem(recoveryKey, String(attempts + 1));
+
+          // Hard-wipe caches FIRST, then unregister SW
+          var cleanupPromises = [];
+          if ('caches' in window) {
+            cleanupPromises.push(
+              caches.keys().then(function(keys) {
+                return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+              })
+            );
+          }
+          if ('serviceWorker' in navigator) {
+            cleanupPromises.push(
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                return Promise.all(regs.map(function(r) { return r.unregister(); }));
+              })
+            );
+          }
+
+          Promise.all(cleanupPromises).then(function() {
+            setTimeout(function() { location.reload(); }, 500);
+          }).catch(function() {
+            setTimeout(function() { location.reload(); }, 500);
+          });
+        }, timeout);
+
+        var observer;
+        try {
+          observer = new MutationObserver(function() {
+            if (isMounted()) {
+              clearTimeout(timer);
+              sessionStorage.removeItem('sw-recovery');
+              observer.disconnect();
+            }
+          });
+          observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: [APP_MOUNTED_ATTR]
+          });
+        } catch(e) {
+          // MutationObserver not supported — fallback poll
+          var poll = setInterval(function() {
+            if (isMounted()) {
+              clearTimeout(timer);
+              sessionStorage.removeItem('sw-recovery');
+              clearInterval(poll);
+            }
+          }, 1000);
+        }
+      })();
+    </script>
+
+    <!-- Preload main script -->
+    <link rel="modulepreload" href="/src/main.tsx" />
+  </head>
+
+  <body>
+    <noscript>
+      <div style="padding: 20px; text-align: center; background: #0a0d14; color: #c4d4e8; min-height: 100vh; min-height: 100dvh; font-family: system-ui, -apple-system, sans-serif;">
+        <h1 style="color: #2dd4bf; margin-top: 40vh; font-size: clamp(1.25rem, 4vw, 2rem);">Meow MEOW FRND APP</h1>
+        <p style="font-size: clamp(0.875rem, 2.5vw, 1rem);">Please enable JavaScript to use this app.</p>
+      </div>
+    </noscript>
+    <div id="root">
+      <div class="app-loading" aria-hidden="true"></div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- Android: force SW update after load, gated by app-mounted check -->
+    <script>
+      if (/Android/i.test(navigator.userAgent) && 'serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          try {
+            navigator.serviceWorker.ready.then(function(reg) {
+              reg.update();
+              reg.addEventListener('updatefound', function() {
+                var newWorker = reg.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', function() {
+                    if (newWorker.state === 'activated') {
+                      // Only reload if app has mounted — prevents infinite reload loop
+                      if (document.visibilityState === 'visible'
+                          && document.documentElement.getAttribute('data-app-mounted') === 'true') {
+                        location.reload();
+                      }
+                    }
+                  });
+                }
+              });
+            });
+          } catch(e) {}
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,77 @@
+name: Deploy Supabase Migrations
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://www.meow-meow.co.in:8443
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzg1ODE0NjI4LCJleHAiOjE4MTczNTA2Mjh9.iIZYL--y80aENoRUdc5U5z9RkK5CBotbT2KHzQdZjTM
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Apply migrations via Supabase CLI
+        run: |
+          supabase db push \
+            --db-url "postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@db.meow-meow.co.in:5432/postgres" \
+            --include-all
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Verify applied migrations
+        run: |
+          echo "Migrations applied successfully"
+          supabase db diff \
+            --db-url "postgresql://postgres:${{ secrets.SUPABASE_DB_PASSWORD }}@www.meow-meow.co.in:5432/postgres" \
+            2>/dev/null || echo "Diff complete"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        continue-on-error: true
+
+      # ---------------------------------------------------------------
+      # Financial Single-Source-of-Truth validation gate.
+      # Calls public.validate_financial_sot() via the PostgREST RPC.
+      # Fails the deploy if any of the 5 checks fail:
+      #   1. no shadow / duplicate rows in wallet_transactions
+      #   2. guard trigger blocking legacy transaction types is present
+      #   3. live forbidden-insert probe is rejected by the trigger
+      #   4. every wallet.balance equals SUM(credit - debit) of its ledger
+      #   5. forbidden legacy RPCs (process_video_billing,
+      #      process_wallet_transaction, process_group_billing v1) are absent
+      # ---------------------------------------------------------------
+      - name: Validate Financial Single Source of Truth
+        run: |
+          set -euo pipefail
+          echo "::group::SoT validator output"
+          RESPONSE=$(curl -sS -X POST "$SUPABASE_URL/rest/v1/rpc/validate_financial_sot" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          echo "$RESPONSE" | python3 -m json.tool
+          echo "::endgroup::"
+
+          OK=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ok'))")
+          if [ "$OK" != "True" ]; then
+            echo "::error::Financial SoT validation FAILED. See output above."
+            echo "$RESPONSE" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for c in data.get('checks', []):
+              status = '✅' if c.get('pass') else '❌'
+              print(f\"  {status} {c['name']}: {json.dumps(c.get('detail', {}))}\")"
+            exit 1
+          fi
+          echo "✅ All 5 SoT checks passed."

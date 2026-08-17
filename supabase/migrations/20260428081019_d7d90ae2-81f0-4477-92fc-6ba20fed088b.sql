@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.validate_financial_sot() TO anon;

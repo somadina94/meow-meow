@@ -1,0 +1,27 @@
+MEOW MEOW – DATA STORAGE & LOCALIZATION POLICY
+Last Updated: 2025
+
+1. Storage Regions
+
+Your data may be stored in:
+- India
+- Asia (Singapore, Japan, Indonesia, UAE)
+- Compliant with local & global privacy laws
+
+2. User Consent
+
+By using Meow Meow, you fully consent to storage and processing in India or Asia.
+
+3. Compliance
+
+Fully adheres to:
+- DPDP India Act 2023
+- GDPR
+- CCPA
+- ISO 27001
+
+4. Security Measures
+
+- Encrypted databases
+- Redundant backups
+- Access isolation

@@ -1,0 +1,1 @@
+DELETE FROM translation_cache WHERE source_text = translated_text;

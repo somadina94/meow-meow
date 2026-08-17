@@ -1,0 +1,27 @@
+MEOW MEOW – GDPR COMPLIANCE STATEMENT
+Last Updated: 2025
+
+1. Lawful Basis
+
+We process user data under:
+- Consent
+- Legitimate Interest
+- Legal obligation
+
+2. Data Subject Rights
+
+EU users may:
+- Access data
+- Request data deletion
+- Correct data
+- Restrict processing
+- Withdraw consent
+- Request portability
+
+3. Cross-Border Transfers
+
+User data may be transferred to India and Asia.
+We use:
+- Standard Contractual Clauses (SCC)
+- Encryption
+- Privacy-by-design
