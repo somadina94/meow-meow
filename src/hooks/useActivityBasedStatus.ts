@@ -111,16 +111,25 @@ export const useActivityBasedStatus = ({
     };
   }, [userId, resetInactivityTimer, subscribe, updateOnlineStatus]);
 
-  // Set offline on unmount — only if user hasn't signed out
+  // Stay online during in-app navigation (dashboard → chat). Only drop on real tab close.
   useEffect(() => {
+    if (!userId) return;
+    const markOffline = () => {
+      if (isSignedOut()) return;
+      supabase.from('user_status').upsert({
+        user_id: userId,
+        is_online: false,
+        last_seen: new Date().toISOString(),
+      }, { onConflict: 'user_id' }).then(() => {}, () => {});
+    };
+    const onPageHide = (e: PageTransitionEvent) => {
+      if (!e.persisted) markOffline();
+    };
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('beforeunload', markOffline);
     return () => {
-      if (userId && !isSignedOut()) {
-        supabase.from('user_status').upsert({
-          user_id: userId,
-          is_online: false,
-          last_seen: new Date().toISOString(),
-        }, { onConflict: 'user_id' }).then(() => {}, () => {});
-      }
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('beforeunload', markOffline);
     };
   }, [userId]);
 

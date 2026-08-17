@@ -252,11 +252,7 @@ export const useActivityStatus = (userId: string | null) => {
       if (visibilityTimeoutRef.current) {
         clearTimeout(visibilityTimeoutRef.current);
       }
-
-      // Set offline when hook unmounts (best effort)
-      if (isOnlineRef.current) {
-        setOnlineStatus(false);
-      }
+      // Stay online when moving dashboard ↔ chat. pagehide/beforeunload already mark offline.
     };
   }, [userId, updateActivity, setOnlineStatus, setOfflineBeacon]);
 

@@ -939,21 +939,14 @@ const DashboardScreen = () => {
         () => {
           loadActiveChatCount();
           fetchActiveChats();
-          playMessageSound();
-          toast({ title: 'New Chat', description: 'You have a new conversation!' });
         }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'active_chat_sessions', filter: `man_user_id=eq.${currentUserId}` },
-        (payload: any) => {
+        (payload) => {
           loadActiveChatCount();
           fetchActiveChats();
-          // Recycled session (ended → active) means someone started a new chat with us
-          if (payload.new?.status === 'active' && payload.old?.status === 'ended') {
-            playMessageSound();
-            toast({ title: 'New Chat', description: 'You have a new conversation!' });
-          }
         }
       )
       .on(

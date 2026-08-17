@@ -19,7 +19,7 @@
 
 // ============= IMPORTS SECTION =============
 // React hooks for state, effects, and refs
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 // React Router hooks for navigation and URL parameters
 import { useNavigate, useParams } from "react-router-dom";
 // UI Components
@@ -383,8 +383,6 @@ const ChatScreen = () => {
   // Session and reconnection states
   const [sessionChatId, setSessionChatId] = useState<string | null>(null);
   const [isSessionActive, setIsSessionActive] = useState(true);
-  const [isReconnecting, setIsReconnecting] = useState(false);
-  const [partnerDisconnected, setPartnerDisconnected] = useState(false);
   const [showStopChatDialog, setShowStopChatDialog] = useState(false);
   const [isStoppingChat, setIsStoppingChat] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
@@ -396,8 +394,6 @@ const ChatScreen = () => {
   
   const sendingLockRef = useRef(false);
   const prevPartnerStateRef = useRef<PartnerPresenceState | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 3;
 
   // Reply, Forward, Edit state
   const [replyTo, setReplyTo] = useState<{ id: string; text: string; senderName: string } | null>(null);
@@ -508,10 +504,10 @@ const ChatScreen = () => {
       ]);
     };
 
-    if (partnerState === "in_chat" && prev && prev !== "typing" && prev !== "in_chat") {
+    if (partnerState === "in_chat" && prev === "left_chat") {
       pushSystem(`${chatPartner.fullName} joined the chat`);
     }
-    if (partnerState === "left_chat" && prev && prev !== "left_chat") {
+    if (partnerState === "left_chat" && (prev === "in_chat" || prev === "typing")) {
       pushSystem(`${chatPartner.fullName} left the chat`);
     }
   }, [partnerState, chatPartner?.fullName]);
@@ -541,20 +537,88 @@ const ChatScreen = () => {
     });
   }, [toast]);
 
-  // BUG-BILL-03 FIX: Only the MAN's client drives billing — bill_session_minute's
-  // auth gate rejects calls from anyone other than the paying man (or admin/service).
-  // Without this gate, the woman's client called the RPC every 60s and silently 404'd
-  // on every tick, leaving the system impossible to debug.
+  // ============= INCOMING CALLS + 1:1 CALL BILLING =============
+  const { incomingCall, clearIncomingCall } = useIncomingCallListener(currentUserId || null, currentUserGender as 'male' | 'female');
+  const { status: callStatus, activeCall, isMuted, isCameraOff, initiateCall, acceptCall, declineCall, endCall, toggleMute, toggleCamera } = useAppCall(currentUserId || null, currentUserGender as 'male' | 'female', walletBalance);
+
+  const refreshManWallet = useCallback(() => {
+    if (!currentUserId || currentUserGender !== "male") return;
+    void supabase.rpc("get_men_wallet_balance", { p_user_id: currentUserId }).then(({ data }) => {
+      if (!data) return;
+      const wd = data as Record<string, number>;
+      setWalletBalance(Number(wd.balance) || 0);
+    });
+  }, [currentUserId, currentUserGender]);
+
+  // Only the man's client may call bill_session_minute (auth gate).
+  // Billing starts after both people have sent a real (non-system) message in this thread.
   const isBillingDriver = !!currentUserId && !!billingManId && currentUserId === billingManId;
-  const { minutesBilled, totalCharged } = useMiniChatBilling({
+  const bothReplied = useMemo(() => {
+    if (!billingManId || !billingWomanId) return false;
+    const manSent = messages.some((m) => !m.isSystem && m.senderId === billingManId);
+    const womanSent = messages.some((m) => !m.isSystem && m.senderId === billingWomanId);
+    return manSent && womanSent;
+  }, [messages, billingManId, billingWomanId]);
+  const { minutesBilled, totalCharged, elapsedSeconds, isBilling, skipReason, stopBillingTimers } = useMiniChatBilling({
     chatId: activeChatId,
-    isActive: isSessionActive && !!billingSessionId && isBillingDriver,
+    isActive: isSessionActive && !!billingSessionId && isBillingDriver && bothReplied,
+    paused: callStatus === "active" || callStatus === "connecting",
     sessionId: billingSessionId,
     manId: billingManId,
     womanId: billingWomanId,
+    userId: currentUserId,
     activitySignal: messages.length ? `${messages.length}:${messages[messages.length - 1]?.createdAt}` : messages.length,
     onInsufficientBalance: handleInsufficientBalance,
+    onCharged: refreshManWallet,
+    onSettled: (result, elapsed) => {
+      if (currentUserGender !== "male") return;
+      if (elapsed < 1) return;
+      const charged = Number(result?.charged);
+      const landed = !!result?.success && charged > 0 && !result.duplicate_skipped && !result.skipped && !result.super_user_skip;
+      if (landed) {
+        toast({
+          title: "Chat billed",
+          description: `₹${charged} charged for ${elapsed}s`,
+        });
+        refreshManWallet();
+        return;
+      }
+      const why = result?.duplicate_skipped
+        ? "Server treated this minute as already billed (no new debit)."
+        : result?.skipped
+          ? `Skipped: ${result.skipped}`
+          : result?.super_user_skip
+            ? "Server skipped this account (super_user_skip)."
+            : result?.error
+              || (result?.success ? `RPC success but charged ₹${Number.isFinite(charged) ? charged : 0}` : "Charge did not land.");
+      toast({
+        title: "Chat not billed",
+        description: why,
+        variant: "destructive",
+      });
+    },
   });
+
+  useEffect(() => {
+    if (!isBillingDriver) return;
+    if (!billingSessionId) {
+      console.warn("[billing] waiting for session id");
+      return;
+    }
+    if (!bothReplied) {
+      console.warn("[billing] waiting until both people have sent a message");
+      return;
+    }
+    console.info("[billing] timers can start", { billingSessionId, billingManId, billingWomanId });
+  }, [isBillingDriver, billingSessionId, bothReplied, billingManId, billingWomanId]);
+
+  useEffect(() => {
+    refreshManWallet();
+  }, [minutesBilled, refreshManWallet]);
+
+  useEffect(() => {
+    if (callStatus === "idle") refreshManWallet();
+  }, [callStatus, refreshManWallet]);
 
   // Cleanup camera stream and wallet channel on unmount
   useEffect(() => {
@@ -579,74 +643,6 @@ const ChatScreen = () => {
   
   // Track user activity and update online status
   const { setOnlineStatus } = useActivityStatus(currentUserId || null);
-  
-  // ============= INCOMING CALLS =============
-  const { incomingCall, clearIncomingCall } = useIncomingCallListener(currentUserId || null, currentUserGender as 'male' | 'female');
-  const { status: callStatus, activeCall, isMuted, isCameraOff, initiateCall, acceptCall, declineCall, endCall, toggleMute, toggleCamera } = useAppCall(currentUserId || null, currentUserGender as 'male' | 'female', walletBalance);
-  
-  // ============= AUTO-RECONNECT HANDLER =============
-  
-  /**
-   * Handles auto-reconnection when partner disconnects or is busy
-   */
-  const handleAutoReconnect = useCallback(async (excludeUserIds: string[] = []) => {
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      toast({
-        title: "Connection Failed",
-        description: "Unable to find available users. Please try again later.",
-        variant: "destructive"
-      });
-      reconnectAttemptsRef.current = 0;
-      setIsReconnecting(false);
-      return;
-    }
-
-    reconnectAttemptsRef.current++;
-    setIsReconnecting(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("chat-manager", {
-        body: {
-          action: "auto_reconnect",
-          man_user_id: currentUserId,
-          exclude_user_ids: excludeUserIds
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.success && data.woman_user_id) {
-        // Navigate to new chat partner
-        reconnectAttemptsRef.current = 0;
-        toast({
-          title: "Reconnected!",
-          description: `Connecting to ${data.profile?.full_name || "a new user"}...`
-        });
-        navigate(`/chat/${data.woman_user_id}`);
-      } else {
-        // No match found
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          // Retry
-          await handleAutoReconnect(excludeUserIds);
-        } else {
-          toast({
-            title: "No Users Available",
-            description: "All users are currently busy. Please try again later.",
-            variant: "destructive"
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Auto-reconnect error:", error);
-      toast({
-        title: "Connection Error",
-        description: "Failed to find available users",
-        variant: "destructive"
-      });
-    } finally {
-      setIsReconnecting(false);
-    }
-  }, [currentUserId, navigate, toast]);
 
   /**
    * useEffect: Initialize Chat
@@ -669,8 +665,8 @@ const ChatScreen = () => {
    * Uses smooth scroll animation for better UX.
    */
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]); // Re-run when messages array changes
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [messages[messages.length - 1]?.id]);
 
   /**
    * useEffect: Real-time Message Subscription
@@ -800,17 +796,19 @@ const ChatScreen = () => {
     };
   }, [activeChatId, applyBackgroundTranslation]); // CHT-01 FIX: Only depend on activeChatId, use refs for everything else
 
-  // Issue 2.2: Re-translate history when language loads late
+  // Issue 2.2: Re-translate history when language loads late — still one paint
   useEffect(() => {
     const langToUse = currentUserLanguage || 'English';
-    if (langToUse && messages.length > 0) {
-      const untranslated = messages.filter(m =>
-        !m.isTranslated && !m.translatedMessage && m.senderId !== currentUserId && !m.isSystem
-      );
-      if (untranslated.length > 0) {
-        translateHistoryMessages(untranslated, langToUse);
-      }
-    }
+    if (!langToUse || messages.length === 0) return;
+    const untranslated = messages.filter(m =>
+      !m.isTranslated && !m.translatedMessage && m.senderId !== currentUserId && !m.isSystem
+    );
+    if (untranslated.length === 0) return;
+    let cancelled = false;
+    void translateHistoryMessages(messages, langToUse).then((ready) => {
+      if (!cancelled) setMessages(ready);
+    });
+    return () => { cancelled = true; };
   }, [currentUserLanguage]);
 
   /**
@@ -857,16 +855,7 @@ const ChatScreen = () => {
 
               // Only disconnect if partner is still truly offline after 15s
               if (currentStatus && currentStatus.is_online === false) {
-                setPartnerDisconnected(true);
-                
-                // If current user is male, trigger auto-reconnect
-                if (currentUserGender === "male") {
-                  toast({
-                    title: "Partner Disconnected",
-                    description: "Finding another available user..."
-                  });
-                  handleAutoReconnect([chatPartner.userId]);
-                }
+                setChatPartner(prev => prev ? { ...prev, isOnline: false } : null);
               } else {
                 // Partner came back online within the debounce window
                 setChatPartner(prev => prev ? { ...prev, isOnline: true } : null);
@@ -878,7 +867,6 @@ const ChatScreen = () => {
               clearTimeout(offlineDebounceTimer);
               offlineDebounceTimer = null;
             }
-            setPartnerDisconnected(false);
             setChatPartner(prev => prev ? { ...prev, isOnline: true } : null);
           }
         }
@@ -936,28 +924,11 @@ const ChatScreen = () => {
             console.log("[Chat] Billing session detected via UPDATE:", session.id, session.status);
           }
 
-          // Check if this is our session and it was ended
+          // Session ended — keep the thread open (WhatsApp-style). Billing stops; no reconnect.
           if (session.status === 'ended' &&
               (session.man_user_id === currentUserId || session.woman_user_id === currentUserId)) {
-
             setIsSessionActive(false);
             setBillingSessionId(null);
-
-            // If ended by partner (woman) and current user is man, auto-reconnect
-            if (session.end_reason === 'woman_closed' || session.end_reason === 'partner_offline') {
-              if (currentUserGender === "male") {
-                toast({
-                  title: "Chat Ended",
-                  description: "Partner closed the chat. Finding another user..."
-                });
-                handleAutoReconnect([chatPartner.userId]);
-              }
-            } else if (session.end_reason === 'man_closed') {
-              toast({
-                title: "Chat Ended",
-                description: "You ended the chat."
-              });
-            }
           }
         }
       )
@@ -968,56 +939,31 @@ const ChatScreen = () => {
       supabase.removeChannel(statusChannel);
       supabase.removeChannel(sessionChannel);
     };
-  }, [chatPartner?.userId, currentUserId, currentUserGender, isSessionActive, handleAutoReconnect, toast]);
+  }, [chatPartner?.userId, currentUserId, currentUserGender, isSessionActive]);
 
   /**
-   * translateHistoryMessages
-   * 
-   * Translates all loaded history messages for the current viewer.
-   * Runs in background — updates messages as translations arrive.
-   * Uses auto-detect so transliteration, native script, and English all work.
+   * Translate history once, then return the full list so the thread can render in one paint.
    */
-  const translateHistoryMessages = useCallback(async (msgs: Message[], viewerLanguage: string) => {
-    const batchSize = 5;
-    for (let i = 0; i < msgs.length; i += batchSize) {
-      const batch = msgs.slice(i, i + batchSize);
-      const translationPromises = batch.map(async (msg) => {
-        try {
-          if (!isTranslatableChatText(msg.message) || msg.isSystem) return null;
-          if (msg.senderId === currentUserIdRef.current) return null;
-          const msgSenderLang = chatPartnerRef.current?.preferredLanguage;
-          if (languagesMatch(viewerLanguage, msgSenderLang)) return null;
-          const result = await translateForViewer(msg.message, viewerLanguage, msgSenderLang);
-          return {
-            id: msg.id,
-            translatedMessage: result.nativeText,
-            englishText: result.englishText,
-            isTranslated: result.nativeText !== msg.message,
-          };
-        } catch {
-          return null;
-        }
-      });
-
-      const results = await Promise.allSettled(translationPromises);
-
-      setMessages(prev => prev.map(m => {
-        const translation = results
-          .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
-          .map(r => r.value)
-          .find(r => r && r.id === m.id);
-        if (translation) {
-          return {
-            ...m,
-            translatedMessage: translation.translatedMessage,
-            englishText: translation.englishText,
-            isTranslated: translation.isTranslated,
-          };
-        }
-        return m;
-      }));
-    }
-  }, []); // Stable — uses refs internally
+  const translateHistoryMessages = useCallback(async (msgs: Message[], viewerLanguage: string): Promise<Message[]> => {
+    const translated = await Promise.all(msgs.map(async (msg) => {
+      try {
+        if (!isTranslatableChatText(msg.message) || msg.isSystem) return msg;
+        if (msg.senderId === currentUserIdRef.current) return msg;
+        const msgSenderLang = chatPartnerRef.current?.preferredLanguage;
+        if (languagesMatch(viewerLanguage, msgSenderLang)) return msg;
+        const result = await translateForViewer(msg.message, viewerLanguage, msgSenderLang);
+        return {
+          ...msg,
+          translatedMessage: result.nativeText,
+          englishText: isEnglishLanguage(viewerLanguage) ? undefined : result.englishText,
+          isTranslated: result.nativeText !== msg.message,
+        };
+      } catch {
+        return msg;
+      }
+    }));
+    return translated;
+  }, []);
 
   /**
    * initializeChat Function
@@ -1251,12 +1197,19 @@ const ChatScreen = () => {
           isRead: msg.is_read || false,
           createdAt: msg.created_at,
         }));
-        setMessages(loadedMessages);
 
-        // Translate all history messages for current viewer (in background)
+        // Translate the whole history first, then paint once so the thread does not jump.
+        let readyMessages = loadedMessages;
         if (motherTongue) {
-          translateHistoryMessages(loadedMessages, motherTongue);
+          const translationTimeout = new Promise<Message[]>((resolve) => {
+            window.setTimeout(() => resolve(loadedMessages), 8000);
+          });
+          readyMessages = await Promise.race([
+            translateHistoryMessages(loadedMessages, motherTongue),
+            translationTimeout,
+          ]);
         }
+        setMessages(readyMessages);
 
         // ============= MARK UNREAD MESSAGES AS READ =============
         
@@ -1495,6 +1448,8 @@ const ChatScreen = () => {
     setShowStopChatDialog(false);
 
     try {
+      await stopBillingTimers();
+
       // End the chat session via chat-manager
       const { error } = await supabase.functions.invoke("chat-manager", {
         body: {
@@ -1536,6 +1491,7 @@ const ChatScreen = () => {
     // End the active chat session before going offline
     if (chatId.current && isSessionActive) {
       try {
+        await stopBillingTimers();
         await supabase.functions.invoke("chat-manager", {
           body: {
             action: "end_chat",
@@ -2209,7 +2165,8 @@ const ChatScreen = () => {
         <div className="px-3 py-2.5 flex items-center gap-3">
           {/* Back button */}
           <button 
-            onClick={() => {
+            onClick={async () => {
+              await stopBillingTimers();
               const dashboardPath = currentUserGender === "female" ? "/women-dashboard" : "/dashboard";
               window.history.length > 1 ? navigate(-1) : navigate(dashboardPath);
             }}
@@ -2265,14 +2222,20 @@ const ChatScreen = () => {
                       <span style={{ fontSize: 12 }}>{chatPartner.preferredLanguage}</span>
                     </>
                   )}
-                  {isSessionActive && minutesBilled > 0 && (
+                  {isSessionActive && isBillingDriver && bothReplied && (
                     <>
                       <span style={{ fontSize: 12 }}>•</span>
                       <span style={{ fontSize: 12 }}>
-                        {currentUserGender === 'male'
-                          ? `Spent ₹${totalCharged.toFixed(2)}`
-                          : `Earned ₹${(minutesBilled * 2).toFixed(2)}`}
-                        {' · '}{minutesBilled}m
+                        {skipReason === "admin"
+                          ? "Not charged"
+                          : minutesBilled > 0
+                            ? (currentUserGender === "male"
+                              ? `Spent ₹${totalCharged.toFixed(2)}`
+                              : `Earned ₹${(minutesBilled * 2).toFixed(2)}`)
+                            : isBilling
+                              ? `Billing ₹${Math.max(4, Math.ceil(Math.max(elapsedSeconds, 1) / 60) * 4)} · ${elapsedSeconds}s`
+                              : ""}
+                        {minutesBilled > 0 ? ` · ${minutesBilled}m` : ""}
                       </span>
                     </>
                   )}

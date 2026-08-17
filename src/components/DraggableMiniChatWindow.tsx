@@ -106,12 +106,14 @@ const DraggableMiniChatWindow = ({
   const manId = userGender === "male" ? currentUserId : partnerId;
   const womanId = userGender === "female" ? currentUserId : partnerId;
   const isBillingDriver = userGender === "male" && currentUserId === manId;
+  const bothReplied = messages.some((m) => !m.isSystem && m.ownerId === currentUserId)
+    && messages.some((m) => !m.isSystem && m.ownerId === partnerId);
   const billingHook = useMiniChatBilling({
     chatId,
     sessionId,
     manId,
     womanId,
-    isActive: isBillingDriver && !!sessionId && !!chatId,
+    isActive: isBillingDriver && !!sessionId && !!chatId && bothReplied,
     activitySignal: messages.length ? `${messages.length}:${messages[messages.length - 1]?.createdAt}` : messages.length,
     onInsufficientBalance: () => {
       toast({ title: "Chat ended", description: "Insufficient balance to continue.", variant: "destructive" });
@@ -200,9 +202,9 @@ const DraggableMiniChatWindow = ({
       ]);
     };
 
-    if (partnerState === "in_chat" && prev && prev !== "typing" && prev !== "in_chat") {
+    if (partnerState === "in_chat" && prev === "left_chat") {
       pushSystem(`${partnerName} joined the chat`);
-    } else if (partnerState === "left_chat" && prev && prev !== "left_chat") {
+    } else if (partnerState === "left_chat" && (prev === "in_chat" || prev === "typing")) {
       pushSystem(`${partnerName} left the chat`);
     }
   }, [partnerState, partnerName, setMessages]);

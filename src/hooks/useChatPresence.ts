@@ -45,6 +45,7 @@ export const useChatPresence = ({
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const partnerTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const leftDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastTypingSentRef = useRef<number>(0);
   const isMountedRef = useRef(true);
 
@@ -73,10 +74,19 @@ export const useChatPresence = ({
       if (!isMountedRef.current) return;
       const next = computePartnerState(partnerMetas);
       setPartnerState((prev) => {
-        // If partner just disappeared and we previously saw them in chat, mark "left_chat" briefly
+        // Presence drop on subscribe/remount is not a real leave — wait before showing left.
         if (next === "offline" && (prev === "in_chat" || prev === "typing")) {
-          setPartnerLastSeen(new Date());
-          return "left_chat";
+          if (leftDebounceRef.current) clearTimeout(leftDebounceRef.current);
+          leftDebounceRef.current = setTimeout(() => {
+            if (!isMountedRef.current) return;
+            setPartnerLastSeen(new Date());
+            setPartnerState("left_chat");
+          }, 4000);
+          return prev;
+        }
+        if (leftDebounceRef.current) {
+          clearTimeout(leftDebounceRef.current);
+          leftDebounceRef.current = null;
         }
         if (next !== "offline") setPartnerLastSeen(new Date());
         return next;
@@ -106,8 +116,12 @@ export const useChatPresence = ({
       .on("broadcast", { event: "left" }, (payload) => {
         const fromId = (payload.payload as any)?.user_id;
         if (fromId !== partnerId || !isMountedRef.current) return;
-        setPartnerLastSeen(new Date());
-        setPartnerState("left_chat");
+        if (leftDebounceRef.current) clearTimeout(leftDebounceRef.current);
+        leftDebounceRef.current = setTimeout(() => {
+          if (!isMountedRef.current) return;
+          setPartnerLastSeen(new Date());
+          setPartnerState("left_chat");
+        }, 4000);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
@@ -124,16 +138,8 @@ export const useChatPresence = ({
 
     return () => {
       isMountedRef.current = false;
-      // Notify partner we left
-      try {
-        channel.send({
-          type: "broadcast",
-          event: "left",
-          payload: { user_id: currentUserId },
-        });
-      } catch {
-        /* noop */
-      }
+      // Do not broadcast "left" here — React remounts and chatId setup would fake a leave.
+      if (leftDebounceRef.current) clearTimeout(leftDebounceRef.current);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       if (partnerTypingTimeoutRef.current) clearTimeout(partnerTypingTimeoutRef.current);
       supabase.removeChannel(channel);

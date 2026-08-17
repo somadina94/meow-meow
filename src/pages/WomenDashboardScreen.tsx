@@ -401,13 +401,9 @@ const WomenDashboardScreen = () => {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'active_chat_sessions', filter: `woman_user_id=eq.${currentUserId}` },
-        (payload: any) => {
+        () => {
           loadActiveChatCount();
           fetchWomenActiveChats();
-          if (payload.new?.status === 'active' && payload.old?.status === 'ended') {
-            playMessageSound();
-            toast({ title: 'New Chat', description: 'Someone started a conversation with you!' });
-          }
         }
       )
       .on(

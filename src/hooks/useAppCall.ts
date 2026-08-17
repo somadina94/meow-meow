@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { ICE_SERVERS } from '@/lib/iceServers';
+import { billMinute, billFinalPartialMinute } from '@/services/billing.service';
 
 export type CallType = 'audio' | 'video';
 export type CallStatus = 'idle' | 'calling' | 'ringing' | 'connecting' | 'active' | 'ended';
@@ -42,6 +43,22 @@ export const useAppCall = (
   const endingRef = useRef(false);
   const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
   const doEndCallRef = useRef<(callId: string, callType: CallType) => Promise<void>>();
+  const startCallBillingRef = useRef<(callId: string, callType: CallType) => Promise<void>>();
+  const currentUserIdRef = useRef(currentUserId);
+  const currentUserGenderRef = useRef(currentUserGender);
+  currentUserIdRef.current = currentUserId;
+  currentUserGenderRef.current = currentUserGender;
+
+  const callBillRef = useRef({
+    sessionUuid: null as string | null,
+    manId: '',
+    womanId: '',
+    start: 0,
+    billed: 0,
+    timer: null as ReturnType<typeof setInterval> | null,
+    inFlight: false,
+    settled: false,
+  });
 
   const setStatusSync = useCallback((s: CallStatus) => {
     statusRef.current = s;
@@ -63,6 +80,10 @@ export const useAppCall = (
     startTimeRef.current = null;
     endingRef.current = false;
     iceCandidateQueueRef.current = [];
+    if (callBillRef.current.timer) {
+      clearInterval(callBillRef.current.timer);
+      callBillRef.current.timer = null;
+    }
     setIsMuted(false);
     setIsCameraOff(false);
     setStatusSync('idle');
@@ -132,7 +153,7 @@ export const useAppCall = (
         supabase.from('video_call_sessions')
           .update({ status: 'active', started_at: new Date().toISOString() })
           .eq('call_id', callId)
-          .then(() => {});
+          .then(() => { void startCallBillingRef.current?.(callId, callType); });
       }
       if (['disconnected', 'failed'].includes(pc.connectionState)) {
         // Try ICE restart on disconnected before giving up
@@ -154,6 +175,70 @@ export const useAppCall = (
     return pc;
   }, [setStatusSync]);
 
+  const startCallBilling = useCallback(async (callId: string, callType: CallType) => {
+    if (currentUserGenderRef.current !== 'male') return;
+    const { data: row, error } = await supabase
+      .from('video_call_sessions')
+      .select('id, man_user_id, woman_user_id')
+      .eq('call_id', callId)
+      .maybeSingle();
+    if (error || !row?.id || !row.man_user_id || !row.woman_user_id) {
+      console.error('[AppCall] cannot start billing — session row missing', { callId, error });
+      return;
+    }
+    const b = callBillRef.current;
+    if (b.timer) {
+      clearInterval(b.timer);
+      b.timer = null;
+    }
+    b.sessionUuid = row.id;
+    b.manId = row.man_user_id;
+    b.womanId = row.woman_user_id;
+    b.start = Date.now();
+    b.billed = 0;
+    b.settled = false;
+    b.inFlight = false;
+    const sessionType = callType === 'audio' ? 'audio_call' : 'video_call';
+    console.info('[AppCall] billing started', { sessionType, session: row.id });
+    b.timer = setInterval(() => {
+      if (b.inFlight || !b.sessionUuid) return;
+      const due = Math.floor((Date.now() - b.start) / 60000);
+      if (due <= b.billed) return;
+      b.inFlight = true;
+      const idx = b.billed;
+      void billMinute(b.sessionUuid, sessionType, 1, b.manId, b.womanId, 1, idx)
+        .then((r) => {
+          if (r.success && r.skipped !== 'admin') {
+            b.billed += 1;
+            console.info('[AppCall] minute charged', { idx, charged: r.charged });
+          } else {
+            console.error('[AppCall] minute not charged', r);
+          }
+        })
+        .finally(() => { b.inFlight = false; });
+    }, 1000);
+  }, []);
+
+  const settleCallBilling = useCallback(async (callType: CallType) => {
+    const b = callBillRef.current;
+    if (b.timer) {
+      clearInterval(b.timer);
+      b.timer = null;
+    }
+    if (b.settled || !b.sessionUuid || !b.start) return;
+    b.settled = true;
+    if (currentUserGenderRef.current !== 'male') return;
+    const elapsed = (Date.now() - b.start) / 1000;
+    if (elapsed < 1) return;
+    const sessionType = callType === 'audio' ? 'audio_call' : 'video_call';
+    try {
+      const result = await billFinalPartialMinute(b.sessionUuid, sessionType, elapsed, b.manId, b.womanId);
+      console.info('[AppCall] leftover settled', { elapsed, result });
+    } catch (e) {
+      console.error('[AppCall] leftover failed', e);
+    }
+  }, []);
+
   const doEndCall = useCallback(async (callId: string, callType: CallType) => {
     if (endingRef.current) return;
     endingRef.current = true;
@@ -161,18 +246,18 @@ export const useAppCall = (
 
     channelRef.current?.send({ type: 'broadcast', event: 'call_ended', payload: {} });
 
+    await settleCallBilling(callType);
+
     await supabase.from('video_call_sessions')
       .update({ status: 'completed', ended_at: new Date().toISOString() })
       .eq('call_id', callId);
 
-    // Billing logic removed — call ends without charging or earning.
-    void callType;
-
     cleanup();
-  }, [cleanup, setStatusSync]);
+  }, [cleanup, setStatusSync, settleCallBilling]);
 
-  // Keep ref in sync so createPC always has latest doEndCall
+  // Keep refs in sync so createPC always has latest handlers
   doEndCallRef.current = doEndCall;
+  startCallBillingRef.current = startCallBilling;
 
   const initiateCall = useCallback(async (
     targetUserId: string,

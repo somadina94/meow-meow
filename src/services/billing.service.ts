@@ -52,6 +52,7 @@ export interface BillingResult {
   minutes?: number;
   super_user_skip?: boolean;
   duplicate_skipped?: boolean;
+  skipped?: string;
   balance?: number;
   required?: number;
   error?: string;
@@ -149,8 +150,16 @@ export async function billMinute(
     p_man_count: manCount,
     p_minute_index: minuteIndex ?? null,
   });
-  if (error) return { success: false, error: error.message };
-  return (data as unknown as BillingResult) ?? { success: false, error: 'No response' };
+  if (error) {
+    console.error('[billing] RPC error', { sessionType, sessionId, minuteIndex, error });
+    return { success: false, error: error.message };
+  }
+  const parsed = (typeof data === 'string' ? JSON.parse(data) : data) as BillingResult | null;
+  if (!parsed) return { success: false, error: 'No response' };
+  if (!parsed.success) {
+    console.error('[billing] RPC rejected', { sessionType, sessionId, minuteIndex, parsed });
+  }
+  return parsed;
 }
 
 export const billChatMinute = (s: string, m: number, mid: string, wid: string, idx?: number) =>
