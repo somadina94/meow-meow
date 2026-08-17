@@ -404,6 +404,7 @@ const ChatScreen = () => {
   
   // Reference to bottom of messages for auto-scroll
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
   
   // Store chat ID for realtime subscription (consistent format)
   const chatId = useRef<string>("");
@@ -659,14 +660,25 @@ const ChatScreen = () => {
   }, [partnerId]); // Re-run if partner ID changes
 
   /**
-   * useEffect: Auto-scroll to Latest Message
-   * 
-   * Scrolls to bottom of message list whenever messages change.
-   * Uses smooth scroll animation for better UX.
+   * Jump to the latest message after history paints, and again when a new
+   * message arrives. Last-id (not the whole messages array) so translation
+   * updates do not yank the viewport. isLoading is required: messages are set
+   * while the spinner is still up, so the list is not in the DOM yet.
    */
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [messages[messages.length - 1]?.id]);
+    if (isLoading) return;
+    const jumpToLatest = () => {
+      const scroller = messagesScrollRef.current;
+      if (scroller) {
+        scroller.scrollTop = scroller.scrollHeight;
+        return;
+      }
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    };
+    jumpToLatest();
+    const frame = window.requestAnimationFrame(jumpToLatest);
+    return () => window.cancelAnimationFrame(frame);
+  }, [isLoading, messages[messages.length - 1]?.id]);
 
   /**
    * useEffect: Real-time Message Subscription
@@ -2458,7 +2470,7 @@ const ChatScreen = () => {
       {/* Translation happens automatically via realtime subscription */}
 
       {/* ============= MESSAGES AREA ============= */}
-      <main className="flex-1 overflow-y-auto wa-chat-scroll px-3 py-2" style={{ background: WA.chatBg }}>
+      <main ref={messagesScrollRef} className="flex-1 overflow-y-auto wa-chat-scroll px-3 py-2" style={{ background: WA.chatBg }}>
         <div className="space-y-1">
           {/* Iterate through date groups */}
           {Object.entries(groupedMessages).map(([date, dateMessages]) => (
