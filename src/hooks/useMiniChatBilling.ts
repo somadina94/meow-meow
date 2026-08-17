@@ -144,10 +144,9 @@ export function useMiniChatBilling({
         return;
       }
 
-      const [{ data: manMessages }, { data: womanMessages }, { data: presence }] = await Promise.all([
+      const [{ data: manMessages }, { data: womanMessages }] = await Promise.all([
         supabase.from('chat_messages').select('created_at').eq('chat_id', cId).eq('sender_id', mId).order('created_at', { ascending: false }).limit(1),
         supabase.from('chat_messages').select('created_at').eq('chat_id', cId).eq('sender_id', wId).order('created_at', { ascending: false }).limit(1),
-        supabase.from('user_status').select('user_id, is_online').in('user_id', [mId, wId]),
       ]);
 
       const manLast = manMessages?.[0]?.created_at ? new Date(manMessages[0].created_at).getTime() : 0;
@@ -156,10 +155,9 @@ export function useMiniChatBilling({
       const now = Date.now();
       const replyGapOk = bothReplied && Math.abs(manLast - womanLast) <= MUTUAL_REPLY_WINDOW_MS;
       const bothIdle = bothReplied && now - manLast >= MUTUAL_IDLE_PAUSE_MS && now - womanLast >= MUTUAL_IDLE_PAUSE_MS;
-      const onlineMap = new Map((presence ?? []).map((p: any) => [p.user_id, !!p.is_online]));
-      const bothOnline = (onlineMap.get(mId) ?? false) && (onlineMap.get(wId) ?? false);
 
-      if (bothReplied && replyGapOk && !bothIdle && bothOnline) {
+      // Presence is not a billing gate: stale is_online was skipping charges after both had replied.
+      if (bothReplied && replyGapOk && !bothIdle) {
         await startBillingTimers();
       } else {
         await stopBillingTimers();

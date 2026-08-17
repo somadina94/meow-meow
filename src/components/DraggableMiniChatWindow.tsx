@@ -111,11 +111,11 @@ const DraggableMiniChatWindow = ({
     sessionId,
     manId,
     womanId,
-    isActive: false, // Bypassing billing
+    isActive: isBillingDriver && !!sessionId && !!chatId,
     activitySignal: messages.length ? `${messages.length}:${messages[messages.length - 1]?.createdAt}` : messages.length,
     onInsufficientBalance: () => {
-      // toast({ title: "Chat ended", description: "Insufficient balance to continue.", variant: "destructive" });
-      // onClose();
+      toast({ title: "Chat ended", description: "Insufficient balance to continue.", variant: "destructive" });
+      onClose();
     },
   });
 
@@ -222,7 +222,7 @@ const DraggableMiniChatWindow = ({
   };
 
   const handleClose = async () => {
-    billing.stopBillingTimers();
+    await billing.stopBillingTimers();
     try {
       await supabase.from("active_chat_sessions")
         .update({ status: "ended", ended_at: new Date().toISOString(), end_reason: userGender === "male" ? "man_closed" : "woman_closed" })
