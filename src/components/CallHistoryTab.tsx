@@ -480,6 +480,7 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
                 country={item.partnerCountry ?? undefined}
                 subtitle={subtitle}
                 actions={rightMeta}
+                livePresence={false}
                 onClick={() => {
                   if (item.type === "chat") void openChat(item.partnerId);
                   else navigate(`/profile/${item.partnerId}`);

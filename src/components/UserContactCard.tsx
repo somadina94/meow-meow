@@ -26,6 +26,8 @@ interface UserContactCardProps {
   statusOverride?: PresenceStatus;
   /** Whether this user is currently typing in chat with viewer */
   isTyping?: boolean;
+  /** Live presence subscription. Off for long lists (history) to avoid channel collisions. */
+  livePresence?: boolean;
   /** Subtitle text (e.g. user code) */
   subtitle?: string;
   /** Right-side action area */
@@ -68,13 +70,14 @@ export const UserContactCard: React.FC<UserContactCardProps> = ({
   walletBalance,
   statusOverride,
   isTyping,
+  livePresence = true,
   subtitle,
   actions,
   onClick,
   onDoubleClick,
   className,
 }) => {
-  const presence = usePresence(userId, isTyping);
+  const presence = usePresence(userId, isTyping, { realtime: livePresence });
   const status: PresenceStatus = statusOverride
     ?? (userId ? presence.status : isOnline ? "online" : "offline");
   const lastSeen = userId ? presence.lastSeen : null;

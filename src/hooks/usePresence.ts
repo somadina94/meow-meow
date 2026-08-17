@@ -18,17 +18,35 @@ interface PresenceResult {
   row: UserStatusRow | null;
 }
 
+interface UsePresenceOptions {
+  /** When false, fetch once and skip realtime (history lists, etc.). Default true. */
+  realtime?: boolean;
+}
+
+function uniqueTopic(prefix: string): string {
+  return `${prefix}:${Math.random().toString(36).slice(2, 10)}`;
+}
+
 /**
  * Subscribe to ONE user's real presence row.
  * Never returns fabricated state — if no row exists, status is "offline".
+ *
+ * Channel names are unique per hook instance. Reusing `presence:user:<id>`
+ * crashes supabase-js: "cannot add postgres_changes callbacks after subscribe()".
  */
-export function usePresence(userId: string | null | undefined, isTyping = false): PresenceResult {
+export function usePresence(
+  userId: string | null | undefined,
+  isTyping = false,
+  options?: UsePresenceOptions
+): PresenceResult {
+  const realtime = options?.realtime !== false;
   const [row, setRow] = useState<UserStatusRow | null>(null);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (!userId) { setRow(null); return; }
     let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     supabase
       .from("user_status")
@@ -37,28 +55,33 @@ export function usePresence(userId: string | null | undefined, isTyping = false)
       .maybeSingle()
       .then(({ data }) => { if (!cancelled) setRow((data as UserStatusRow) ?? null); });
 
-    const channel = supabase
-      .channel(`presence:user:${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "user_status", filter: `user_id=eq.${userId}` },
-        (payload) => {
-          if (cancelled) return;
-          if (payload.eventType === "DELETE") setRow(null);
-          else setRow((payload.new as UserStatusRow) ?? null);
-        }
-      )
-      .subscribe();
+    if (realtime) {
+      try {
+        channel = supabase
+          .channel(uniqueTopic(`presence:user:${userId}`))
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "user_status", filter: `user_id=eq.${userId}` },
+            (payload) => {
+              if (cancelled) return;
+              if (payload.eventType === "DELETE") setRow(null);
+              else setRow((payload.new as UserStatusRow) ?? null);
+            }
+          );
+        channel.subscribe();
+      } catch (err) {
+        console.warn("[usePresence] realtime subscribe skipped:", err);
+      }
+    }
 
-    // Re-derive every 30s so "Active now" → "Away" transitions appear without an event.
     const interval = setInterval(() => setTick((t) => t + 1), 30_000);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
-      supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, realtime]);
 
   return useMemo(() => {
     const { status, lastSeen } = derivePresence(row, { isTyping });
@@ -81,13 +104,13 @@ export function usePresenceMap(userIds: string[]): Record<string, PresenceResult
   const [rows, setRows] = useState<Record<string, UserStatusRow>>({});
   const [tick, setTick] = useState(0);
 
-  // Stable key so effect doesn't re-run on every render
   const key = useMemo(() => [...new Set(userIds)].sort().join(","), [userIds]);
 
   useEffect(() => {
     const ids = key ? key.split(",").filter(Boolean) : [];
     if (ids.length === 0) { setRows({}); return; }
     let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     supabase
       .from("user_status")
@@ -100,31 +123,35 @@ export function usePresenceMap(userIds: string[]): Record<string, PresenceResult
         setRows(map);
       });
 
-    const channel = supabase
-      .channel(`presence:map:${ids.length}:${ids[0]}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "user_status" },
-        (payload) => {
-          if (cancelled) return;
-          const next = (payload.new as UserStatusRow) ?? (payload.old as UserStatusRow);
-          if (!next || !ids.includes(next.user_id)) return;
-          setRows((prev) => {
-            if (payload.eventType === "DELETE") {
-              const copy = { ...prev }; delete copy[next.user_id]; return copy;
-            }
-            return { ...prev, [next.user_id]: next };
-          });
-        }
-      )
-      .subscribe();
+    try {
+      channel = supabase
+        .channel(uniqueTopic(`presence:map:${ids.length}`))
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "user_status" },
+          (payload) => {
+            if (cancelled) return;
+            const next = (payload.new as UserStatusRow) ?? (payload.old as UserStatusRow);
+            if (!next || !ids.includes(next.user_id)) return;
+            setRows((prev) => {
+              if (payload.eventType === "DELETE") {
+                const copy = { ...prev }; delete copy[next.user_id]; return copy;
+              }
+              return { ...prev, [next.user_id]: next };
+            });
+          }
+        );
+      channel.subscribe();
+    } catch (err) {
+      console.warn("[usePresenceMap] realtime subscribe skipped:", err);
+    }
 
     const interval = setInterval(() => setTick((t) => t + 1), 30_000);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
-      supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [key]);
 
