@@ -17,7 +17,7 @@ interface Props {
   viewerLanguage?: string;
 }
 
-interface ActiveRoom { sessionId: string; roomId: string; roomName: string; hostId: string; }
+interface ActiveRoom { sessionId: string; roomId: string; roomName: string; hostId: string; hostName?: string | null; }
 
 const GroupChatTab: React.FC<Props> = ({ currentUserId, viewerGender, viewerName, viewerLanguage }) => {
   const isMale = viewerGender === "male";
@@ -36,17 +36,39 @@ const GroupChatTab: React.FC<Props> = ({ currentUserId, viewerGender, viewerName
   const handleJoin = async (r: GroupChatRoom) => {
     const res = await gcJoin(r.id);
     if (!res.success) { toast({ title: "Cannot join", description: res.error, variant: "destructive" }); return; }
-    setActive({ sessionId: res.session_id!, roomId: r.id, roomName: r.name, hostId: r.current_host_id! });
+    setActive({
+      sessionId: res.session_id!,
+      roomId: r.id,
+      roomName: r.name,
+      hostId: r.current_host_id!,
+      hostName: r.host_name ?? null,
+    });
     gcAnnounce(res.session_id!, r.id, currentUserId, viewerName, viewerGender, "join");
   };
   const handleGoLive = async (r: GroupChatRoom) => {
     const res = await gcGoLive(r.id);
     if (!res.success) { toast({ title: "Cannot go live", description: res.error, variant: "destructive" }); return; }
-    setActive({ sessionId: res.session_id!, roomId: r.id, roomName: r.name, hostId: currentUserId });
+    setActive({
+      sessionId: res.session_id!,
+      roomId: r.id,
+      roomName: r.name,
+      hostId: currentUserId,
+      hostName: viewerName,
+    });
     gcAnnounce(res.session_id!, r.id, currentUserId, viewerName, viewerGender, "join");
   };
   const handleEndLive = async (r: GroupChatRoom) => {
-    if (r.current_session_id) await gcEndLive(r.current_session_id);
+    if (!r.current_session_id) {
+      toast({ title: "Cannot end room", description: "No live session on this room.", variant: "destructive" });
+      return;
+    }
+    const res = await gcEndLive(r.current_session_id);
+    if (!res.success) {
+      toast({ title: "Could not end room", description: res.error, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Room ended", description: `${r.name} is no longer live.` });
+    setActive((a) => (a?.roomId === r.id ? null : a));
   };
 
   return (
@@ -105,6 +127,7 @@ const GroupChatTab: React.FC<Props> = ({ currentUserId, viewerGender, viewerName
           roomId={active.roomId}
           roomName={active.roomName}
           hostId={active.hostId}
+          hostName={active.hostName}
           currentUserId={currentUserId}
           viewerGender={viewerGender}
           viewerName={viewerName}

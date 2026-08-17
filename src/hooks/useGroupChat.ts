@@ -16,6 +16,7 @@ export interface GroupChatRoom {
   current_host_id: string | null;
   current_session_id: string | null;
   current_participant_count: number;
+  host_name?: string | null;
 }
 
 export interface GroupChatMessage {
@@ -63,14 +64,26 @@ export function useGroupChatRooms(opts?: { onlyLive?: boolean }) {
       .order("variant_number");
     if (opts?.onlyLive) q = q.eq("status", "live");
     const { data } = await q;
-    setRooms((data ?? []) as GroupChatRoom[]);
+    const list = (data ?? []) as GroupChatRoom[];
+    const hostIds = Array.from(new Set(list.map((r) => r.current_host_id).filter(Boolean))) as string[];
+    if (hostIds.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", hostIds);
+      const names = new Map((profs ?? []).map((p: { user_id: string; full_name: string | null }) => [p.user_id, p.full_name]));
+      for (const r of list) {
+        r.host_name = r.current_host_id ? names.get(r.current_host_id) ?? null : null;
+      }
+    }
+    setRooms(list);
     setLoading(false);
   }, [opts?.onlyLive]);
 
   useEffect(() => {
     load();
     const ch = supabase
-      .channel("group_chat_rooms_changes")
+      .channel(`group_chat_rooms_changes:${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "group_chat_rooms" }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -126,7 +139,7 @@ export function useGroupChatRoom(sessionId: string | null, hostId?: string | nul
     })();
 
     const ch = supabase
-      .channel(`gc_session_${sessionId}`)
+      .channel(`gc_session_${sessionId}:${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "group_chat_messages", filter: `session_id=eq.${sessionId}` },
         (p) => setMessages((m) => [...m, p.new as GroupChatMessage]))
@@ -185,7 +198,13 @@ export async function gcGoLive(roomId: string) {
   return data as { success: boolean; session_id?: string; error?: string };
 }
 export async function gcEndLive(sessionId: string) {
-  await supabase.rpc("group_chat_end_live", { p_session_id: sessionId });
+  const { data, error } = await supabase.rpc("group_chat_end_live", { p_session_id: sessionId });
+  if (error) return { success: false, error: error.message } as const;
+  const r = data as { success?: boolean; error?: string } | null;
+  if (r && r.success === false) {
+    return { success: false, error: r.error || "Could not end room" } as const;
+  }
+  return { success: true } as const;
 }
 export async function gcJoin(roomId: string) {
   const { data, error } = await supabase.rpc("group_chat_join", { p_room_id: roomId });
@@ -193,7 +212,13 @@ export async function gcJoin(roomId: string) {
   return data as { success: boolean; session_id?: string; error?: string };
 }
 export async function gcLeave(sessionId: string) {
-  await supabase.rpc("group_chat_leave", { p_session_id: sessionId });
+  const { data, error } = await supabase.rpc("group_chat_leave", { p_session_id: sessionId });
+  if (error) return { success: false, error: error.message } as const;
+  const r = data as { success?: boolean; error?: string } | null;
+  if (r && r.success === false) {
+    return { success: false, error: r.error || "Could not leave" } as const;
+  }
+  return { success: true } as const;
 }
 
 /** Best-effort system announcement into a live group chat (join/leave). */

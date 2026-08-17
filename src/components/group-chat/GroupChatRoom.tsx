@@ -30,6 +30,7 @@ interface Props {
   roomId: string;
   roomName: string;
   hostId: string;
+  hostName?: string | null;
   currentUserId: string;
   viewerGender: "male" | "female";
   viewerName: string;
@@ -74,7 +75,7 @@ const AttachmentView: React.FC<{ url: string; type?: string | null; duration?: n
 };
 
 export const GroupChatRoom: React.FC<Props> = ({
-  sessionId, roomId, roomName, hostId, currentUserId, viewerGender, viewerName, viewerLanguage, onClose,
+  sessionId, roomId, roomName, hostId, hostName, currentUserId, viewerGender, viewerName, viewerLanguage, onClose,
 }) => {
   const isHost = currentUserId === hostId;
   const isMan = viewerGender === "male";
@@ -100,26 +101,47 @@ export const GroupChatRoom: React.FC<Props> = ({
   const recChunks = useRef<Blob[]>([]);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [hostProfile, setHostProfile] = useState<{ full_name: string | null; photo_url: string | null; gender: string | null } | null>(null);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length]);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!hostId) return;
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("full_name, photo_url, gender")
+      .eq("user_id", hostId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) setHostProfile(data);
+      });
+    return () => { cancelled = true; };
+  }, [hostId]);
+
+  useEffect(() => {
+    if (!sessionId || !roomId || isHost) return;
+    const closeIfEnded = (ended: boolean) => {
+      if (!ended) return;
+      toast({ title: "Room closed", description: "Host ended the live session." });
+      onClose();
+    };
     const ch = supabase
-      .channel(`gc_session_end_${sessionId}`)
+      .channel(`gc_room_end:${roomId}:${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes",
         { event: "UPDATE", schema: "public", table: "group_chat_sessions", filter: `id=eq.${sessionId}` },
+        (p) => closeIfEnded(!!(p.new as { ended_at: string | null }).ended_at))
+      .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "group_chat_rooms", filter: `id=eq.${roomId}` },
         (p) => {
-          const row = p.new as { ended_at: string | null };
-          if (row.ended_at) {
-            toast({ title: "Room closed", description: "Host ended the live session." });
-            onClose();
-          }
+          const row = p.new as { status?: string; current_session_id?: string | null };
+          closeIfEnded(row.status !== "live" || row.current_session_id !== sessionId);
         })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [sessionId, onClose]);
+  }, [sessionId, roomId, isHost, onClose]);
 
   useGroupChatBilling({
     sessionId, manId: isMan ? currentUserId : null, enabled: isMan,
@@ -213,14 +235,36 @@ export const GroupChatRoom: React.FC<Props> = ({
   };
 
   const handleLeave = async () => {
+    if (isHost) {
+      const res = await gcEndLive(sessionId);
+      if (!res.success) {
+        toast({ title: "Could not end room", description: res.error, variant: "destructive" });
+        return;
+      }
+      await gcAnnounce(sessionId, roomId, currentUserId, viewerName, viewerGender, "leave");
+      onClose();
+      return;
+    }
     await gcAnnounce(sessionId, roomId, currentUserId, viewerName, viewerGender, "leave");
-    if (isHost) await gcEndLive(sessionId); else await gcLeave(sessionId);
+    await gcLeave(sessionId);
     onClose();
   };
 
   const pinned = messages.filter(m => m.pinned);
-  const hostParticipant = participants.find(p => p.is_host);
+  const hostParticipant = participants.find(p => p.is_host) ?? (
+    hostId
+      ? {
+          user_id: hostId,
+          joined_at: "",
+          full_name: hostProfile?.full_name ?? hostName ?? "Host",
+          photo_url: hostProfile?.photo_url ?? null,
+          gender: hostProfile?.gender ?? "female",
+          is_host: true,
+        }
+      : undefined
+  );
   const others = participants.filter(p => !p.is_host);
+  const hostLabel = hostParticipant?.full_name || hostName || "Host";
 
   const PeoplePanel = (
     <div className="h-full flex flex-col bg-card">
@@ -234,7 +278,7 @@ export const GroupChatRoom: React.FC<Props> = ({
             {hostParticipant ? (
               <PersonRow p={hostParticipant} />
             ) : (
-              <div className="text-xs text-muted-foreground px-1">Host offline</div>
+              <div className="text-xs text-muted-foreground px-1">No host</div>
             )}
           </div>
           <div>
@@ -343,8 +387,8 @@ export const GroupChatRoom: React.FC<Props> = ({
             <Radio className="w-3.5 h-3.5 text-red-500 animate-pulse" />
             {roomName}
           </div>
-          <div className="text-[11px] text-muted-foreground">
-            {participants.length} online · {isMan ? "₹2/min" : "Hosting · ₹1/min per man"}
+          <div className="text-[11px] text-muted-foreground truncate">
+            Host {hostLabel} · {participants.length} online · {isMan ? "₹2/min" : "Hosting · ₹1/min per man"}
           </div>
         </div>
         <Button size="sm" variant="destructive" onClick={handleLeave}>

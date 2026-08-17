@@ -48,9 +48,12 @@ export const GroupChatRoomCard: React.FC<Props> = ({ room, viewerGender, isMine,
         )}
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <Users className="w-3.5 h-3.5" />
+        <span className="inline-flex items-center gap-1 min-w-0">
+          <Users className="w-3.5 h-3.5 shrink-0" />
           {room.current_participant_count}/{room.max_users}
+          {isLive && room.host_name ? (
+            <span className="truncate"> · Host {room.host_name}</span>
+          ) : null}
         </span>
         {renderAction()}
       </div>
