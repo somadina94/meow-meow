@@ -110,7 +110,7 @@ export const UserContactCard: React.FC<UserContactCardProps> = ({
         <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
           <AvatarImage src={photoUrl || undefined} alt={name} />
           <AvatarFallback className="bg-gradient-to-br from-primary to-primary/60 text-primary-foreground text-sm font-semibold">
-            {name.charAt(0).toUpperCase()}
+            {String(name || "?").charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
         {activeChatCount !== undefined && activeChatCount > 0 ? (

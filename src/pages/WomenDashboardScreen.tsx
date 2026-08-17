@@ -63,6 +63,7 @@ import { isVisibilityStatusChange } from "@/lib/presence";
 // WhatsAppFAB removed — unused in current layout
 import { WomenKYCForm } from "@/components/WomenKYCForm";
 import { CallHistoryTab } from "@/components/CallHistoryTab";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useChatPricing } from '@/hooks/useChatPricing';
 import { StatementTab } from '@/components/StatementTab';
 import { ScrollingAnnouncementsBar } from '@/components/ScrollingAnnouncementsBar';
@@ -1709,7 +1710,20 @@ const WomenDashboardScreen = () => {
       <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === "online" && renderOnlineUsersTab()}
         {activeTab === "chats" && renderChatsTab()}
-        {activeTab === "history" && <div className="min-h-0 h-full overflow-y-auto overscroll-contain scroll-smooth"><CallHistoryTab currentUserId={currentUserId} userGender="female" /></div>}
+        {activeTab === "history" && (
+          <div className="min-h-0 h-full overflow-y-auto overscroll-contain scroll-smooth">
+            <ErrorBoundary
+              fallback={
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                  <p className="text-sm font-medium">Couldn&apos;t load history</p>
+                  <p className="text-xs mt-1">Please refresh and try again.</p>
+                </div>
+              }
+            >
+              <CallHistoryTab currentUserId={currentUserId} userGender="female" />
+            </ErrorBoundary>
+          </div>
+        )}
         {activeTab === "matches" && renderMatchesTab()}
         {activeTab === "community" && renderCommunityTab()}
         {activeTab === "groups" && renderGroupsTab()}

@@ -54,11 +54,42 @@ const RATES = {
   groupchat: { man: 2, woman: 1 },
 } as const;
 
+const asList = <T,>(v: T[] | null | undefined): T[] => (Array.isArray(v) ? v : []);
+
+const asRecord = (v: unknown): Record<string, any> | undefined => {
+  if (!v) return undefined;
+  if (Array.isArray(v)) return asRecord(v[0]);
+  if (typeof v === "object") return v as Record<string, any>;
+  return undefined;
+};
+
+const asText = (v: unknown, fallback: string): string => {
+  if (typeof v === "string" && v.trim()) return v;
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return fallback;
+};
+
+const asNum = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
 /** Any leftover seconds (1–59) count as a full billed minute. */
 const billedMinutes = (minutes: number): number => {
-  const totalSecs = Math.max(0, Math.round(minutes * 60));
+  const totalSecs = Math.max(0, Math.round(asNum(minutes) * 60));
   if (totalSecs <= 0) return 0;
   return Math.ceil(totalSecs / 60);
+};
+
+const relativeTime = (iso?: string): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  try {
+    return formatDistanceToNow(d, { addSuffix: true });
+  } catch {
+    return "";
+  }
 };
 
 const formatDuration = (minutes: number): string => {
@@ -118,13 +149,20 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
         .order("joined_at", { ascending: false })
         .limit(50);
 
+      const chats = asList(chatSessions);
+      const videos = asList(videoSessions);
+      const groupRows = asList(groupTxs as any[]);
+      const groupChats = asList(gcRows as any[]);
+
       // Collect partner IDs
       const partnerIds = new Set<string>();
-      chatSessions?.forEach((s) => {
-        partnerIds.add(s.man_user_id === currentUserId ? s.woman_user_id : s.man_user_id);
+      chats.forEach((s) => {
+        const pid = s.man_user_id === currentUserId ? s.woman_user_id : s.man_user_id;
+        if (pid) partnerIds.add(pid);
       });
-      videoSessions?.forEach((s) => {
-        partnerIds.add(s.man_user_id === currentUserId ? s.woman_user_id : s.man_user_id);
+      videos.forEach((s) => {
+        const pid = s.man_user_id === currentUserId ? s.woman_user_id : s.man_user_id;
+        if (pid) partnerIds.add(pid);
       });
       // (Group call partners are not direct 1:1; no extra partner IDs to fetch)
 
@@ -132,7 +170,7 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
       const profileMap = new Map<string, { full_name: string; photo_url: string; age: number | null; language: string | null; state: string | null; country: string | null }>();
       if (partnerIds.size > 0) {
         const publicProfiles = await fetchPublicProfiles(Array.from(partnerIds));
-        publicProfiles.forEach((p) =>
+        asList(publicProfiles).forEach((p) =>
           profileMap.set(p.user_id, {
             full_name: p.full_name || "User",
             photo_url: p.photo_url || "",
@@ -145,27 +183,27 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
       }
 
       // Map chat sessions — compute amounts based on gender
-      chatSessions?.forEach((s) => {
+      chats.forEach((s) => {
         const pid = s.man_user_id === currentUserId ? s.woman_user_id : s.man_user_id;
+        if (!s.id || !pid) return;
         const profile = profileMap.get(pid);
-        const mins = billedMinutes(Number(s.total_minutes) || 0);
+        const mins = billedMinutes(asNum(s.total_minutes));
         const rate = isMale ? RATES.chat.man : RATES.chat.woman;
-        const amount = mins * rate;
         items.push({
           id: s.id,
           type: "chat",
           partnerId: pid,
-          partnerName: profile?.full_name || "User",
-          partnerAvatar: profile?.photo_url || "",
+          partnerName: asText(profile?.full_name, "User"),
+          partnerAvatar: asText(profile?.photo_url, ""),
           partnerAge: profile?.age ?? null,
           partnerLanguage: profile?.language ?? null,
           partnerState: profile?.state ?? null,
           partnerCountry: profile?.country ?? null,
-          status: s.status,
-          startedAt: s.started_at || s.created_at,
+          status: asText(s.status, "ended"),
+          startedAt: asText(s.started_at || s.created_at, ""),
           endedAt: s.ended_at || undefined,
           totalMinutes: mins,
-          totalAmount: amount,
+          totalAmount: mins * rate,
           ratePerMinute: rate,
           endReason: s.end_reason || undefined,
           isIncoming: !isMale,
@@ -173,30 +211,29 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
       });
 
       // Map video sessions — detect audio vs video from call_type or rate
-      videoSessions?.forEach((s) => {
+      videos.forEach((s) => {
         const pid = s.man_user_id === currentUserId ? s.woman_user_id : s.man_user_id;
+        if (!s.id || !pid) return;
         const profile = profileMap.get(pid);
-        const mins = billedMinutes(Number(s.total_minutes) || 0);
-        const callType = (s as any).call_type;
-        const isAudio = callType === 'audio';
+        const mins = billedMinutes(asNum(s.total_minutes));
+        const isAudio = (s as any).call_type === "audio";
         const rateSet = isAudio ? RATES.audio : RATES.video;
         const rate = isMale ? rateSet.man : rateSet.woman;
-        const amount = mins * rate;
         items.push({
           id: s.id,
           type: isAudio ? "audio" : "video",
           partnerId: pid,
-          partnerName: profile?.full_name || "User",
-          partnerAvatar: profile?.photo_url || "",
+          partnerName: asText(profile?.full_name, "User"),
+          partnerAvatar: asText(profile?.photo_url, ""),
           partnerAge: profile?.age ?? null,
           partnerLanguage: profile?.language ?? null,
           partnerState: profile?.state ?? null,
           partnerCountry: profile?.country ?? null,
-          status: s.status,
-          startedAt: s.started_at || s.created_at,
+          status: asText(s.status, "ended"),
+          startedAt: asText(s.started_at || s.created_at, ""),
           endedAt: s.ended_at || undefined,
           totalMinutes: mins,
-          totalAmount: amount,
+          totalAmount: mins * rate,
           ratePerMinute: rate,
           endReason: s.end_reason || undefined,
           isIncoming: !isMale,
@@ -204,48 +241,54 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
       });
 
       // Map group call transactions — derive duration & amount from wallet_transactions
-      groupTxs?.forEach((tx: any) => {
-        const secs = Number(tx.duration_seconds) || 0;
+      groupRows.forEach((tx: any) => {
+        if (!tx?.id) return;
+        const secs = asNum(tx.duration_seconds);
         const mins = billedMinutes(secs / 60);
-        const rate = Number(tx.rate_per_minute) || (isMale ? RATES.group.man : RATES.group.woman);
-        const partnerName = tx.counterparty_name || tx.partner_name || tx.description || "Private Group";
+        const rate = asNum(tx.rate_per_minute) || (isMale ? RATES.group.man : RATES.group.woman);
+        const partnerName = asText(
+          tx.counterparty_name || tx.partner_name || tx.description,
+          "Private Group"
+        );
         items.push({
-          id: tx.id,
+          id: String(tx.id),
           type: "group",
-          partnerId: tx.counterparty_id || tx.partner_id || "",
+          partnerId: asText(tx.counterparty_id || tx.partner_id, ""),
           partnerName,
-          partnerAvatar: tx.partner_avatar || "",
+          partnerAvatar: asText(tx.partner_avatar, ""),
           status: "ended",
-          startedAt: tx.created_at,
-          endedAt: tx.created_at,
+          startedAt: asText(tx.created_at, ""),
+          endedAt: asText(tx.created_at, "") || undefined,
           totalMinutes: mins,
-          totalAmount: Number(tx.amount) || mins * rate,
+          totalAmount: asNum(tx.amount) || mins * rate,
           ratePerMinute: rate,
           groupName: partnerName,
         });
       });
 
       // Map group chat participation — one row per session joined
-      gcRows?.forEach((row: any) => {
-        const secs = Number(row.total_seconds) || 0;
+      groupChats.forEach((row: any) => {
+        if (!row?.id) return;
+        const secs = asNum(row.total_seconds);
         const mins = billedMinutes(secs / 60);
         const rate = isMale ? RATES.groupchat.man : RATES.groupchat.woman;
-        const billed = Number(row.total_billed) || (mins * rate);
-        const sess = row.group_chat_sessions;
-        const room = sess?.group_chat_rooms;
+        const billed = asNum(row.total_billed) || mins * rate;
+        const sess = asRecord(row.group_chat_sessions);
+        const room = asRecord(sess?.group_chat_rooms);
+        const roomName = asText(room?.name, "Group Chat");
         items.push({
-          id: row.id,
+          id: String(row.id),
           type: "groupchat",
           partnerId: "",
-          partnerName: room?.name || "Group Chat",
+          partnerName: roomName,
           partnerAvatar: "",
-          status: row.left_at ? "ended" : (sess?.ended_at ? "ended" : "active"),
-          startedAt: row.joined_at,
+          status: row.left_at ? "ended" : sess?.ended_at ? "ended" : "active",
+          startedAt: asText(row.joined_at || sess?.started_at, ""),
           endedAt: row.left_at || sess?.ended_at || undefined,
           totalMinutes: mins,
           totalAmount: billed,
           ratePerMinute: rate,
-          groupName: room?.name || "Group Chat",
+          groupName: roomName,
         });
       });
 
@@ -375,8 +418,9 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
             if (item.status === "active") subtitleParts.push("Ongoing");
             else subtitleParts.push(item.endReason || "Ended");
             if (item.totalMinutes > 0) subtitleParts.push(formatDuration(item.totalMinutes));
-            if (item.ratePerMinute > 0) subtitleParts.push(`₹${item.ratePerMinute}/min`);
-            if (item.totalAmount > 0) subtitleParts.push(`${isMale ? "-" : "+"}₹${item.totalAmount.toFixed(2)}`);
+            if (item.ratePerMinute > 0) subtitleParts.push(`₹${asNum(item.ratePerMinute)}/min`);
+            const amount = asNum(item.totalAmount);
+            if (amount > 0) subtitleParts.push(`${isMale ? "-" : "+"}₹${amount.toFixed(2)}`);
             const subtitle = subtitleParts.join(" · ");
 
             const rightMeta = (
@@ -384,7 +428,7 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
                 <span className={cn("p-1 rounded-full", getTypeBadgeColor(item.type))}>
                   {getTypeIcon(item.type)}
                 </span>
-                <span>{formatDistanceToNow(new Date(item.startedAt), { addSuffix: true })}</span>
+                <span>{relativeTime(item.startedAt)}</span>
                 {item.status === "active" && (
                   <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-primary/10 text-primary border-primary/30">
                     LIVE
@@ -417,7 +461,7 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
                     <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
                   </div>
                   <div className="text-[10px] text-muted-foreground flex-shrink-0">
-                    {formatDistanceToNow(new Date(item.startedAt), { addSuffix: true })}
+                    {relativeTime(item.startedAt)}
                   </div>
                 </button>
               );
