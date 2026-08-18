@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { INDIAN_OFFICIAL_LANGUAGES } from "@/data/indianOfficialLanguages";
 
-/** Audio/video calls are only for these profile languages. */
+/** 1:1 audio/video calls are only for these profile languages. */
 export const INDIAN_CALL_LANGUAGES = [
   "Hindi",
   "Bengali",
@@ -9,28 +10,47 @@ export const INDIAN_CALL_LANGUAGES = [
   "Tamil",
 ] as const;
 
-export const MAX_ACTIVE_CALL_USERS_PER_LANGUAGE = 15;
+/** Group calls: all 22 scheduled Indian languages (not English). */
+export const GROUP_CALL_LANGUAGES = INDIAN_OFFICIAL_LANGUAGES
+  .filter((l) => l.code !== "en")
+  .map((l) => l.name);
 
-const CALL_LANGUAGE_ALIASES: Record<string, string> = {
-  hindi: "hindi",
-  hi: "hindi",
-  हिन्दी: "hindi",
-  हिंदी: "hindi",
-  bengali: "bengali",
+export const MAX_ACTIVE_CALL_USERS_PER_LANGUAGE = 15;
+export const MAX_GROUP_CALL_PARTICIPANTS = 15;
+
+const EXTRA_ALIASES: Record<string, string> = {
   bangla: "bengali",
   bn: "bengali",
   বাংলা: "bengali",
   "bengali (india)": "bengali",
-  marathi: "marathi",
+  hi: "hindi",
+  हिन्दी: "hindi",
+  हिंदी: "hindi",
   mr: "marathi",
   मराठी: "marathi",
-  telugu: "telugu",
   te: "telugu",
   తెలుగు: "telugu",
-  tamil: "tamil",
   ta: "tamil",
   தமிழ்: "tamil",
+  oriya: "odia",
+  or: "odia",
+  panjabi: "punjabi",
+  pa: "punjabi",
+  meitei: "manipuri",
+  meetei: "manipuri",
 };
+
+const CALL_LANGUAGE_ALIASES: Record<string, string> = { ...EXTRA_ALIASES };
+
+for (const lang of INDIAN_OFFICIAL_LANGUAGES) {
+  if (lang.code === "en") continue;
+  const canonical = lang.name.toLowerCase();
+  CALL_LANGUAGE_ALIASES[canonical] = canonical;
+  CALL_LANGUAGE_ALIASES[lang.code.toLowerCase()] = canonical;
+  CALL_LANGUAGE_ALIASES[lang.nativeName.toLowerCase()] = canonical;
+}
+
+const GROUP_CALL_LANG_SET = new Set(GROUP_CALL_LANGUAGES.map((n) => n.toLowerCase()));
 
 export function normalizeCallLanguage(lang?: string | null): string {
   const raw = (lang || "").trim().toLowerCase();
@@ -41,6 +61,10 @@ export function normalizeCallLanguage(lang?: string | null): string {
 export function isIndianCallLanguage(lang?: string | null): boolean {
   const n = normalizeCallLanguage(lang);
   return n === "hindi" || n === "bengali" || n === "marathi" || n === "telugu" || n === "tamil";
+}
+
+export function isGroupCallLanguage(lang?: string | null): boolean {
+  return GROUP_CALL_LANG_SET.has(normalizeCallLanguage(lang));
 }
 
 /** Prefer mother tongue / call-eligible language over English UI preferred_language. */
@@ -94,14 +118,26 @@ export async function fetchCallLanguage(userId: string): Promise<string> {
   );
 }
 
-/** Same Indian call language on both profiles. */
+/** Same Indian 1:1 call language on both profiles. */
 export function canCallEachOther(a?: string | null, b?: string | null): boolean {
   if (!isIndianCallLanguage(a) || !isIndianCallLanguage(b)) return false;
   return normalizeCallLanguage(a) === normalizeCallLanguage(b);
 }
 
+/** Same group-call language (any scheduled Indian language). */
+export function canJoinGroupCall(a?: string | null, b?: string | null): boolean {
+  if (!isGroupCallLanguage(a) || !isGroupCallLanguage(b)) return false;
+  return normalizeCallLanguage(a) === normalizeCallLanguage(b);
+}
+
 export const CALL_LANGUAGE_UNAVAILABLE =
   "Audio and video calls only work when both of you have the same profile language: Hindi, Bengali, Marathi, Telugu, or Tamil.";
+
+export const GROUP_CALL_LANGUAGE_UNAVAILABLE =
+  "Group calls are available when your profile language is an Indian language.";
+
+export const GROUP_HOST_TAKEN =
+  "This language already has a live group-call host. Try again when they stop.";
 
 export const CALL_LANGUAGE_CAP_REACHED =
   "This language already has 15 people on audio/video calls. Try again later.";
@@ -125,6 +161,26 @@ export async function assertLanguageCallCapacity(
   return {
     allowed: result.allowed === true,
     count: Number(result.count) || 0,
+    error: result.error,
+  };
+}
+
+export async function assertGroupHostLanguageSlot(
+  language: string,
+): Promise<{ allowed: boolean; error?: string }> {
+  if (!isGroupCallLanguage(language)) {
+    return { allowed: false, error: GROUP_CALL_LANGUAGE_UNAVAILABLE };
+  }
+  const { data, error } = await supabase.rpc("assert_group_host_language_slot", {
+    p_language: language,
+  });
+  if (error) {
+    console.warn("[Group calls] host-slot RPC unavailable:", error.message);
+    return { allowed: true };
+  }
+  const result = (data || {}) as { allowed?: boolean; error?: string };
+  return {
+    allowed: result.allowed === true,
     error: result.error,
   };
 }

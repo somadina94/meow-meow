@@ -118,7 +118,7 @@ export const VoiceMessagePlayer = ({
           : "bg-muted text-foreground",
         className
       )}>
-        <audio src={audioUrl} controls preload="metadata" crossOrigin="anonymous" className="h-8 max-w-[200px]" />
+        <audio src={audioUrl} controls preload="metadata" className="h-8 max-w-[200px]" />
       </div>
     );
   }
@@ -131,7 +131,7 @@ export const VoiceMessagePlayer = ({
         : "bg-muted text-foreground rounded-bl-md",
       className
     )}>
-      <audio ref={audioRef} src={audioUrl} preload="metadata" crossOrigin="anonymous" />
+      <audio ref={audioRef} src={audioUrl} preload="metadata" />
       
       {/* Play/Pause button */}
       <Button

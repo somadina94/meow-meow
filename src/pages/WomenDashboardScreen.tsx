@@ -57,7 +57,7 @@ import { MatchFiltersPanel, MatchFilters } from "@/components/MatchFiltersPanel"
 import { AppHeader } from "@/components/AppHeader";
 import { AppBottomTabs, getWomenTabs } from "@/components/AppBottomTabs";
 import GroupChatTab from "@/components/GroupChatTab";
-import { isIndianCallLanguage, pickCallLanguage } from "@/lib/call-languages";
+import { isGroupCallLanguage, pickCallLanguage } from "@/lib/call-languages";
 
 import { UserContactCard } from "@/components/UserContactCard";
 import { isVisibilityStatusChange } from "@/lib/presence";
@@ -335,7 +335,7 @@ const WomenDashboardScreen = () => {
   useEffect(() => { currentWomanLanguageRef.current = currentWomanLanguage; }, [currentWomanLanguage]);
   useEffect(() => { currentWomanCountryRef.current = currentWomanCountry; }, [currentWomanCountry]);
   useEffect(() => {
-    if (activeTab === "groups" && !isIndianCallLanguage(currentWomanLanguage)) {
+    if (activeTab === "groups" && !isGroupCallLanguage(currentWomanLanguage)) {
       setActiveTab("online");
     }
   }, [activeTab, currentWomanLanguage]);
@@ -1152,7 +1152,7 @@ const WomenDashboardScreen = () => {
 
   const onlineMenCount = sameLanguageMen.length + otherLanguageMen.length;
   const totalUnreadCount = womenActiveChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-  const showCallGroups = appSettings.privateGroupsEnabled !== false && isIndianCallLanguage(currentWomanLanguage);
+  const showCallGroups = appSettings.privateGroupsEnabled !== false && isGroupCallLanguage(currentWomanLanguage);
   const womenTabs = getWomenTabs(onlineMenCount || undefined, totalUnreadCount || activeChatCount || undefined, matchedMen.length || undefined, !!appSettings.statementsTabVisible, appSettings.chatEnabled !== false, showCallGroups, isTL);
 
   const renderOnlineUsersTab = () => (

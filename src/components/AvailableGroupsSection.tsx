@@ -9,10 +9,9 @@ import { cn } from '@/lib/utils';
 import { getFlowerImage } from '@/assets/flowers';
 import { PrivateGroupCallWindow } from './PrivateGroupCallWindow';
 import {
-  canCallEachOther,
-  MAX_ACTIVE_CALL_USERS_PER_LANGUAGE,
-  CALL_LANGUAGE_UNAVAILABLE,
-  assertLanguageCallCapacity,
+  canJoinGroupCall,
+  MAX_GROUP_CALL_PARTICIPANTS,
+  GROUP_CALL_LANGUAGE_UNAVAILABLE,
 } from '@/lib/call-languages';
 
 interface PrivateGroup {
@@ -103,7 +102,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
           } as LiveHostRow;
         })
         .filter((x): x is LiveHostRow => x !== null)
-        .filter((x) => canCallEachOther(userLanguage, x.host_language))
+        .filter((x) => canJoinGroupCall(userLanguage, x.host_language))
         .sort((a, b) => a.group.name.localeCompare(b.group.name));
 
       setRows(built);
@@ -139,17 +138,12 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
       toast.error(`Insufficient balance. You need at least ₹${minBalance} (${MIN_BALANCE_MINUTES} minutes) to join.`);
       return;
     }
-    if (!canCallEachOther(userLanguage, row.host_language)) {
-      toast.error(CALL_LANGUAGE_UNAVAILABLE);
+    if (!canJoinGroupCall(userLanguage, row.host_language)) {
+      toast.error(GROUP_CALL_LANGUAGE_UNAVAILABLE);
       return;
     }
-    if (row.participant_count >= MAX_ACTIVE_CALL_USERS_PER_LANGUAGE) {
-      toast.error(`This host's room is full (max ${MAX_ACTIVE_CALL_USERS_PER_LANGUAGE} participants)`);
-      return;
-    }
-    const cap = await assertLanguageCallCapacity(row.host_language || userLanguage || '', 1);
-    if (!cap.allowed) {
-      toast.error(cap.error || CALL_LANGUAGE_UNAVAILABLE);
+    if (row.participant_count >= MAX_GROUP_CALL_PARTICIPANTS) {
+      toast.error(`This host's room is full (max ${MAX_GROUP_CALL_PARTICIPANTS} participants)`);
       return;
     }
 
@@ -171,7 +165,10 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
     try {
       // Atomic join (existing RPC keeps participant_count consistent)
       const { data: joinResult, error: joinError } = await supabase.rpc('join_group_atomic', {
-        p_group_id: row.group.id, p_user_id: currentUserId, p_max_participants: MAX_ACTIVE_CALL_USERS_PER_LANGUAGE,
+        p_group_id: row.group.id,
+        p_user_id: currentUserId,
+        p_max_participants: MAX_GROUP_CALL_PARTICIPANTS,
+        p_host_id: row.host_id,
       });
       if (joinError) throw joinError;
       const result = joinResult as { success: boolean; error?: string; host_id?: string };
@@ -258,7 +255,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
       {rows.length > 0 && (
         <div className="divide-y divide-border/50 bg-card rounded-xl overflow-hidden border border-border/60">
           {rows.map((row) => {
-            const isFull = row.participant_count >= MAX_ACTIVE_CALL_USERS_PER_LANGUAGE;
+            const isFull = row.participant_count >= MAX_GROUP_CALL_PARTICIPANTS;
             const key = `${row.group.id}:${row.host_id}`;
             const isJoining = joiningKey === key;
 
@@ -302,7 +299,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                      <Users className="h-2.5 w-2.5" /> {row.participant_count}/{MAX_ACTIVE_CALL_USERS_PER_LANGUAGE}
+                      <Users className="h-2.5 w-2.5" /> {row.participant_count}/{MAX_GROUP_CALL_PARTICIPANTS}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
                       💰 ₹{RATE_PER_MINUTE}/min

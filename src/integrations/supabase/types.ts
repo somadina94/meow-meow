@@ -4096,6 +4096,10 @@ export type Database = {
         Args: { p_language: string; p_slots?: number }
         Returns: Json
       }
+      assert_group_host_language_slot: {
+        Args: { p_language: string }
+        Returns: Json
+      }
       count_active_call_users_for_language: {
         Args: { p_language: string }
         Returns: number
@@ -4462,6 +4466,7 @@ export type Database = {
           p_group_id: string
           p_max_participants?: number
           p_user_id: string
+          p_host_id?: string
         }
         Returns: Json
       }

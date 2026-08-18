@@ -96,6 +96,9 @@ export const LanguageGroupChat = ({
   const recRef = useRef<MediaRecorder | null>(null);
   const recChunks = useRef<Blob[]>([]);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recMimeRef = useRef<{ mimeType: string; ext: string }>({ mimeType: "audio/webm", ext: "webm" });
+  const recStreamRef = useRef<MediaStream | null>(null);
+  const handleSendMessageRef = useRef<(fileOverride?: File | null) => Promise<void>>(async () => {});
 
   // Load messages and members
   useEffect(() => {
@@ -296,8 +299,8 @@ export const LanguageGroupChat = ({
         const mimeMap: Record<string, string> = {
           jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
           webp: "image/webp", heic: "image/heic", heif: "image/heif", bmp: "image/bmp",
-          mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime",
-          mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/x-m4a", webm: "audio/webm",
+          mp4: "video/mp4", mov: "video/quicktime",
+          mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", webm: "audio/webm", ogg: "audio/ogg",
           pdf: "application/pdf", doc: "application/msword",
           docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -305,11 +308,21 @@ export const LanguageGroupChat = ({
           txt: "text/plain", csv: "text/csv", zip: "application/zip",
         };
         const extLower = (fileExt || "").toLowerCase();
-        const contentType = fileToSend.type || mimeMap[extLower] || "application/octet-stream";
+        const isVoice = fileToSend.name.startsWith("voice-") || (fileToSend.type || "").startsWith("audio/");
+        const contentType = isVoice
+          ? (fileToSend.type || mimeMap[extLower] || "audio/webm")
+          : (fileToSend.type || mimeMap[extLower] || "application/octet-stream");
 
-        const { error: uploadError } = await supabase.storage
+        let { error: uploadError } = await supabase.storage
           .from("community-files")
-          .upload(filePath, fileToSend, { contentType });
+          .upload(filePath, fileToSend, { contentType, upsert: false });
+
+        if (uploadError) {
+          const fallback = await supabase.storage
+            .from("community-files")
+            .upload(filePath, fileToSend, { contentType: "application/octet-stream", upsert: false });
+          uploadError = fallback.error;
+        }
 
         if (uploadError) throw uploadError;
 
@@ -318,7 +331,7 @@ export const LanguageGroupChat = ({
           .getPublicUrl(filePath);
 
         fileUrl = urlData.publicUrl;
-        fileType = fileToSend.type;
+        fileType = isVoice ? (fileToSend.type || "audio/webm") : fileToSend.type;
         fileName = fileToSend.name;
         fileSize = fileToSend.size;
         setIsUploading(false);
@@ -352,6 +365,7 @@ export const LanguageGroupChat = ({
       setIsUploading(false);
     }
   };
+  handleSendMessageRef.current = handleSendMessage;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -385,31 +399,75 @@ export const LanguageGroupChat = ({
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      recStreamRef.current = stream;
       recChunks.current = [];
-      mr.ondataavailable = (e) => e.data.size && recChunks.current.push(e.data);
-      mr.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(recChunks.current, { type: "audio/webm" });
-        const file = new File([blob], `voice-${crypto.randomUUID().slice(0, 8)}.webm`, { type: "audio/webm" });
-        setRecordSecs(0);
-        await handleSendMessage(file);
+
+      const candidates: [string, string][] = [
+        ["audio/webm;codecs=opus", "webm"],
+        ["audio/webm", "webm"],
+        ["audio/mp4", "m4a"],
+        ["audio/ogg;codecs=opus", "ogg"],
+      ];
+      const picked = candidates.find(([mime]) =>
+        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mime)
+      ) || ["", "webm"] as [string, string];
+      recMimeRef.current = { mimeType: picked[0], ext: picked[1] };
+
+      const mr = recMimeRef.current.mimeType
+        ? new MediaRecorder(stream, { mimeType: recMimeRef.current.mimeType })
+        : new MediaRecorder(stream);
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) recChunks.current.push(e.data);
       };
-      mr.start();
+      mr.start(100);
       recRef.current = mr;
       setRecording(true);
       recTimer.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
     } catch (e: any) {
+      recStreamRef.current?.getTracks().forEach((t) => t.stop());
+      recStreamRef.current = null;
       toast({ title: "Mic error", description: e?.message ?? "Cannot access microphone", variant: "destructive" });
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
     if (recTimer.current) { clearInterval(recTimer.current); recTimer.current = null; }
-    recRef.current?.stop();
+    const recorder = recRef.current;
     recRef.current = null;
     setRecording(false);
+
+    if (!recorder || recorder.state === "inactive") {
+      recStreamRef.current?.getTracks().forEach((t) => t.stop());
+      recStreamRef.current = null;
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      recorder.onstop = () => {
+        recStreamRef.current?.getTracks().forEach((t) => t.stop());
+        recStreamRef.current = null;
+        resolve();
+      };
+      try { recorder.requestData(); } catch { /* some browsers throw if inactive */ }
+      recorder.stop();
+    });
+
+    const mimeType = recMimeRef.current.mimeType.split(";")[0] || "audio/webm";
+    const ext = recMimeRef.current.ext || "webm";
+    const blob = new Blob(recChunks.current, { type: mimeType });
+    recChunks.current = [];
+    setRecordSecs(0);
+
+    if (blob.size < 500) {
+      toast({ title: "Recording too short", description: "Hold a bit longer, then tap stop to send.", variant: "destructive" });
+      return;
+    }
+
+    const file = new File([blob], `voice-${crypto.randomUUID().slice(0, 8)}.${ext}`, { type: mimeType });
+    await handleSendMessageRef.current(file);
   };
 
   const getFileIcon = (fileType: string | null) => {
@@ -543,7 +601,7 @@ export const LanguageGroupChat = ({
                                   className="max-w-full max-h-48 rounded-md object-cover"
                                 />
                               </a>
-                            ) : msg.fileType?.startsWith("audio/") ? (
+                            ) : (msg.fileType?.startsWith("audio/") || msg.fileName?.startsWith("voice-")) ? (
                               <VoiceMessagePlayer audioUrl={msg.fileUrl} isMine={msg.isOwn} />
                             ) : (
                               <a
