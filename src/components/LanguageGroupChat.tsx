@@ -23,6 +23,7 @@ import {
 import { classifyError, ERROR_MESSAGES, logError } from "@/lib/errors";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { VoiceMessagePlayer } from "@/components/VoiceMessagePlayer";
@@ -98,7 +99,8 @@ export const LanguageGroupChat = ({
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const recMimeRef = useRef<{ mimeType: string; ext: string }>({ mimeType: "audio/webm", ext: "webm" });
   const recStreamRef = useRef<MediaStream | null>(null);
-  const handleSendMessageRef = useRef<(fileOverride?: File | null) => Promise<void>>(async () => {});
+  const stoppingRef = useRef(false);
+  const recordSecsRef = useRef(0);
 
   // Load messages and members
   useEffect(() => {
@@ -257,7 +259,7 @@ export const LanguageGroupChat = ({
             isOwn: newMsg.sender_id === currentUserId
           };
 
-          setMessages(prev => [...prev, message]);
+          setMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message]);
         }
       )
       .subscribe();
@@ -269,7 +271,11 @@ export const LanguageGroupChat = ({
 
   const handleSendMessage = async (fileOverride?: File | null) => {
     const fileToSend = fileOverride ?? selectedFile;
-    if ((!newMessage.trim() && !fileToSend) || isSending) return;
+    if (isSending) return;
+    if (!newMessage.trim() && !fileToSend) {
+      toast({ title: "Nothing to send", description: "Type a message or attach a voice note first.", variant: "destructive" });
+      return;
+    }
 
     if (newMessage.trim()) {
       const { moderateMessage } = await import('@/lib/content-moderation');
@@ -294,7 +300,7 @@ export const LanguageGroupChat = ({
       if (fileToSend) {
         setIsUploading(true);
         const fileExt = fileToSend.name.split(".").pop();
-        const filePath = `${languageName}/${currentUserId}/${Date.now()}.${fileExt}`;
+        const filePath = `${languageName}/${currentUserId}/${crypto.randomUUID()}.${fileExt}`;
 
         const mimeMap: Record<string, string> = {
           jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
@@ -310,7 +316,7 @@ export const LanguageGroupChat = ({
         const extLower = (fileExt || "").toLowerCase();
         const isVoice = fileToSend.name.startsWith("voice-") || (fileToSend.type || "").startsWith("audio/");
         const contentType = isVoice
-          ? (fileToSend.type || mimeMap[extLower] || "audio/webm")
+          ? "application/octet-stream"
           : (fileToSend.type || mimeMap[extLower] || "application/octet-stream");
 
         let { error: uploadError } = await supabase.storage
@@ -337,7 +343,7 @@ export const LanguageGroupChat = ({
         setIsUploading(false);
       }
 
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from("language_community_messages")
         .insert({
           language_code: languageName,
@@ -347,9 +353,28 @@ export const LanguageGroupChat = ({
           file_type: fileType,
           file_name: fileName,
           file_size: fileSize
-        });
+        })
+        .select("id, sender_id, message, file_url, file_type, file_name, file_size, created_at")
+        .single();
 
       if (error) throw error;
+
+      if (inserted) {
+        const local: CommunityMessage = {
+          id: inserted.id,
+          senderId: inserted.sender_id,
+          senderName: userName || "You",
+          senderPhoto: userPhoto,
+          message: inserted.message,
+          fileUrl: inserted.file_url,
+          fileType: inserted.file_type,
+          fileName: inserted.file_name,
+          fileSize: inserted.file_size,
+          createdAt: inserted.created_at,
+          isOwn: true,
+        };
+        setMessages(prev => prev.some(m => m.id === local.id) ? prev : [...prev, local]);
+      }
 
       setNewMessage("");
       setSelectedFile(null);
@@ -365,7 +390,6 @@ export const LanguageGroupChat = ({
       setIsUploading(false);
     }
   };
-  handleSendMessageRef.current = handleSendMessage;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -398,6 +422,7 @@ export const LanguageGroupChat = ({
   };
 
   const startRecording = async () => {
+    if (recording || isSending || stoppingRef.current) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
@@ -420,54 +445,186 @@ export const LanguageGroupChat = ({
         ? new MediaRecorder(stream, { mimeType: recMimeRef.current.mimeType })
         : new MediaRecorder(stream);
       mr.ondataavailable = (e) => {
-        if (e.data.size > 0) recChunks.current.push(e.data);
+        if (e.data && e.data.size > 0) recChunks.current.push(e.data);
       };
-      mr.start(100);
+      try {
+        mr.start(250);
+      } catch {
+        mr.start();
+      }
       recRef.current = mr;
+      stoppingRef.current = false;
+      recordSecsRef.current = 0;
+      setRecordSecs(0);
       setRecording(true);
-      recTimer.current = setInterval(() => setRecordSecs((s) => s + 1), 1000);
+      recTimer.current = setInterval(() => {
+        recordSecsRef.current += 1;
+        setRecordSecs(recordSecsRef.current);
+      }, 1000);
     } catch (e: any) {
       recStreamRef.current?.getTracks().forEach((t) => t.stop());
       recStreamRef.current = null;
-      toast({ title: "Mic error", description: e?.message ?? "Cannot access microphone", variant: "destructive" });
+      sonnerToast.error("Mic error", { description: e?.message ?? "Cannot access microphone" });
     }
   };
 
+  const sendCommunityVoice = async (blob: Blob, ext: string, mimeType: string) => {
+    const id = crypto.randomUUID();
+    const fileName = `voice-${id.slice(0, 8)}.${ext}`;
+    const audioType = mimeType || blob.type || "audio/webm";
+    const buckets: Array<{ id: string; path: string }> = [
+      { id: "community-files", path: `${languageName}/${currentUserId}/${id}.${ext}` },
+      { id: "chat-attachments", path: `${currentUserId}/community/${id}.${ext}` },
+      { id: "meowmeow-app-attachment", path: `meowmeow/app/attachment/${currentUserId}/community/${fileName}` },
+    ];
+
+    let fileUrl: string | null = null;
+    let lastError = "Upload failed";
+
+    for (const bucket of buckets) {
+      try {
+        const raced = await Promise.race([
+          supabase.storage.from(bucket.id).upload(bucket.path, blob, {
+            contentType: "application/octet-stream",
+            upsert: false,
+          }),
+          new Promise<{ data: null; error: { message: string } }>((resolve) =>
+            setTimeout(() => resolve({ data: null, error: { message: `${bucket.id} timed out` } }), 10000)
+          ),
+        ]);
+        if (raced.error) {
+          lastError = raced.error.message;
+          continue;
+        }
+        if (bucket.id === "community-files") {
+          fileUrl = supabase.storage.from(bucket.id).getPublicUrl(bucket.path).data.publicUrl;
+        } else {
+          const signed = await supabase.storage.from(bucket.id).createSignedUrl(bucket.path, 60 * 60 * 24 * 365);
+          fileUrl = signed.data?.signedUrl || null;
+        }
+        if (fileUrl) break;
+      } catch (e: any) {
+        lastError = e?.message || lastError;
+      }
+    }
+
+    if (!fileUrl) {
+      throw new Error(lastError);
+    }
+
+    const { data: inserted, error } = await supabase
+      .from("language_community_messages")
+      .insert({
+        language_code: languageName,
+        sender_id: currentUserId,
+        message: null,
+        file_url: fileUrl,
+        file_type: audioType.startsWith("audio/") ? audioType : "audio/webm",
+        file_name: fileName,
+        file_size: blob.size,
+      })
+      .select("id, sender_id, message, file_url, file_type, file_name, file_size, created_at")
+      .single();
+
+    if (error) throw error;
+    if (!inserted) throw new Error("Voice note was not saved");
+
+    const local: CommunityMessage = {
+      id: inserted.id,
+      senderId: inserted.sender_id,
+      senderName: userName || "You",
+      senderPhoto: userPhoto,
+      message: inserted.message,
+      fileUrl: inserted.file_url,
+      fileType: inserted.file_type,
+      fileName: inserted.file_name,
+      fileSize: inserted.file_size,
+      createdAt: inserted.created_at,
+      isOwn: true,
+    };
+    setMessages((prev) => (prev.some((m) => m.id === local.id) ? prev : [...prev, local]));
+  };
+
   const stopRecording = async () => {
-    if (recTimer.current) { clearInterval(recTimer.current); recTimer.current = null; }
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+    if (recTimer.current) {
+      clearInterval(recTimer.current);
+      recTimer.current = null;
+    }
     const recorder = recRef.current;
     recRef.current = null;
-    setRecording(false);
+    const recordedSecs = recordSecsRef.current;
 
-    if (!recorder || recorder.state === "inactive") {
+    if (recorder && recorder.state !== "inactive") {
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          recStreamRef.current?.getTracks().forEach((t) => t.stop());
+          recStreamRef.current = null;
+          resolve();
+        };
+        recorder.addEventListener("stop", finish, { once: true });
+        recorder.addEventListener("error", finish, { once: true });
+        try {
+          if (recorder.state === "recording") recorder.requestData();
+        } catch {
+          /* ignore */
+        }
+        try {
+          if (recorder.state !== "inactive") recorder.stop();
+          else finish();
+        } catch {
+          finish();
+        }
+        window.setTimeout(finish, 800);
+      });
+    } else {
       recStreamRef.current?.getTracks().forEach((t) => t.stop());
       recStreamRef.current = null;
-      return;
     }
 
-    await new Promise<void>((resolve) => {
-      recorder.onstop = () => {
-        recStreamRef.current?.getTracks().forEach((t) => t.stop());
-        recStreamRef.current = null;
-        resolve();
-      };
-      try { recorder.requestData(); } catch { /* some browsers throw if inactive */ }
-      recorder.stop();
-    });
-
-    const mimeType = recMimeRef.current.mimeType.split(";")[0] || "audio/webm";
-    const ext = recMimeRef.current.ext || "webm";
-    const blob = new Blob(recChunks.current, { type: mimeType });
-    recChunks.current = [];
+    setRecording(false);
     setRecordSecs(0);
 
-    if (blob.size < 500) {
-      toast({ title: "Recording too short", description: "Hold a bit longer, then tap stop to send.", variant: "destructive" });
+    const mimeType = (
+      recMimeRef.current.mimeType.split(";")[0] ||
+      recorder?.mimeType ||
+      "audio/webm"
+    ).split(";")[0];
+    const ext =
+      recMimeRef.current.ext ||
+      (mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm");
+    const blob = new Blob(recChunks.current, { type: mimeType || "audio/webm" });
+    recChunks.current = [];
+
+    if (blob.size < 50 && recordedSecs < 1) {
+      stoppingRef.current = false;
+      sonnerToast.error("Recording too short", { description: "Speak for a second or two, then tap send." });
+      return;
+    }
+    if (blob.size < 50) {
+      stoppingRef.current = false;
+      sonnerToast.error("Voice not captured", { description: "This browser did not save audio. Try Chrome, or allow the microphone." });
       return;
     }
 
-    const file = new File([blob], `voice-${crypto.randomUUID().slice(0, 8)}.${ext}`, { type: mimeType });
-    await handleSendMessageRef.current(file);
+    setIsSending(true);
+    setIsUploading(true);
+    try {
+      await sendCommunityVoice(blob, ext, mimeType);
+    } catch (err: any) {
+      console.error("[Community voice] send failed:", err);
+      sonnerToast.error("Voice not sent", {
+        description: classifyError(err, "send the voice note").message,
+      });
+    } finally {
+      setIsSending(false);
+      setIsUploading(false);
+      stoppingRef.current = false;
+    }
   };
 
   const getFileIcon = (fileType: string | null) => {
@@ -496,7 +653,7 @@ export const LanguageGroupChat = ({
 
   if (isLoading) {
     return (
-      <Card className="h-[calc(100vh-180px)] min-h-[400px]">
+      <Card className="h-full min-h-0 flex flex-col overflow-hidden">
         <CardHeader className="pb-3">
           <Skeleton className="h-6 w-48" />
         </CardHeader>
@@ -516,7 +673,7 @@ export const LanguageGroupChat = ({
   }
 
   return (
-    <Card className="h-[calc(100vh-180px)] min-h-[400px] flex flex-col">
+      <Card className="h-full min-h-0 flex flex-col overflow-hidden">
       {/* Header */}
       <CardHeader className="pb-3 border-b">
         <div className="flex items-center justify-between">
@@ -685,7 +842,7 @@ export const LanguageGroupChat = ({
               </Button>
 
               {recording ? (
-                <Button type="button" variant="destructive" size="icon" onClick={stopRecording}>
+                <Button type="button" variant="destructive" size="icon" onClick={stopRecording} disabled={isSending}>
                   <StopCircle className="w-5 h-5" />
                 </Button>
               ) : (
@@ -697,15 +854,16 @@ export const LanguageGroupChat = ({
               <Input
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
-                placeholder={recording ? `Recording ${recordSecs}s… tap stop to send` : "Type a message..."}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && !recording && handleSendMessage()}
+                placeholder={recording ? `Recording ${recordSecs}s… tap send` : "Type a message..."}
                 disabled={isSending || recording}
                 className="flex-1"
               />
               
               <Button
-                onClick={() => handleSendMessage()}
-                disabled={(!newMessage.trim() && !selectedFile) || isSending || recording}
+                type="button"
+                onClick={() => (recording ? void stopRecording() : void handleSendMessage())}
+                disabled={isSending || (!recording && !newMessage.trim() && !selectedFile)}
                 size="icon"
               >
                 {isUploading ? (
