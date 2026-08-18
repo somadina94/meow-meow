@@ -66,9 +66,13 @@ export const useMiniChatBilling = ({
   onSettledRef.current = onSettled;
 
   const applyCharge = useCallback((result: BillingResult, reason: string) => {
-    if (result.skipped === 'admin' || result.super_user_skip) {
-      setSkipReason('admin');
-      console.warn('[billing] server returned skip', result);
+    if (result.skipped === 'admin' || result.super_user_skip || result.skipped === 'waiting_for_replies' || result.skipped === 'not_answered') {
+      setSkipReason(result.skipped === 'admin' || result.super_user_skip ? 'admin' : result.skipped || null);
+      if (result.skipped === 'waiting_for_replies' || result.skipped === 'not_answered') {
+        console.info('[billing] skipped until both parties engage', result);
+      } else {
+        console.warn('[billing] server returned skip', result);
+      }
       return false;
     }
     if (result.duplicate_skipped) {

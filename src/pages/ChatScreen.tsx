@@ -110,7 +110,8 @@ import { useChatPresence, type PartnerPresenceState } from "@/hooks/useChatPrese
 import { PartnerStatusLine } from "@/components/chat/PartnerStatusLine";
 import { extractVoiceUrl, isTranslatableChatText, normalizeChatAttachmentUrl, storagePathFromAttachmentUrl } from "@/lib/chat-attachments";
 import { translateForViewer, isEnglishLanguage, languagesMatch } from "@/lib/translation-service";
-import { canCallEachOther, pickCallLanguage } from "@/lib/call-languages";
+import { canCallEachOther, fetchCallLanguage, pickCallLanguage } from "@/lib/call-languages";
+import { useAppSettings } from "@/hooks/useAppSettings";
 
 // MAX_PARALLEL_CHATS is now loaded dynamically from app_settings
 // Default fallback only used if database is unavailable
@@ -357,6 +358,7 @@ const ChatScreen = () => {
   
   // Current user's preferred language (used for matching display)
   const [currentUserLanguage, setCurrentUserLanguage] = useState<string>("");
+  const [canPlaceCall, setCanPlaceCall] = useState(false);
   
   // Current user's gender for billing/earnings display
   const [currentUserGender, setCurrentUserGender] = useState<"male" | "female">("male");
@@ -392,6 +394,7 @@ const ChatScreen = () => {
   const [billingSessionId, setBillingSessionId] = useState<string | null>(null);
   const [billingManId, setBillingManId] = useState<string>("");
   const [billingWomanId, setBillingWomanId] = useState<string>("");
+  const [billingSessionStartedAt, setBillingSessionStartedAt] = useState<string | null>(null);
   
   const sendingLockRef = useRef(false);
   const prevPartnerStateRef = useRef<PartnerPresenceState | null>(null);
@@ -540,8 +543,26 @@ const ChatScreen = () => {
   }, [toast]);
 
   // ============= INCOMING CALLS + 1:1 CALL BILLING =============
+  const { settings } = useAppSettings();
   const { incomingCall, clearIncomingCall } = useIncomingCallListener(currentUserId || null, currentUserGender as 'male' | 'female', currentUserLanguage);
   const { status: callStatus, activeCall, isMuted, isCameraOff, initiateCall, acceptCall, declineCall, endCall, toggleMute, toggleCamera } = useAppCall(currentUserId || null, currentUserGender as 'male' | 'female', walletBalance);
+
+  useEffect(() => {
+    if (currentUserGender !== "male" || !currentUserId || !chatPartner?.userId) {
+      setCanPlaceCall(false);
+      return;
+    }
+    let cancelled = false;
+    Promise.all([
+      fetchCallLanguage(currentUserId),
+      fetchCallLanguage(chatPartner.userId),
+    ]).then(([selfLang, partnerLang]) => {
+      if (!cancelled) setCanPlaceCall(canCallEachOther(selfLang, partnerLang));
+    }).catch(() => {
+      if (!cancelled) setCanPlaceCall(false);
+    });
+    return () => { cancelled = true; };
+  }, [currentUserGender, currentUserId, chatPartner?.userId]);
 
   const refreshManWallet = useCallback(() => {
     if (!currentUserId || currentUserGender !== "male") return;
@@ -556,11 +577,13 @@ const ChatScreen = () => {
   // Billing starts after both people have sent a real (non-system) message in this thread.
   const isBillingDriver = !!currentUserId && !!billingManId && currentUserId === billingManId;
   const bothReplied = useMemo(() => {
-    if (!billingManId || !billingWomanId) return false;
-    const manSent = messages.some((m) => !m.isSystem && m.senderId === billingManId);
-    const womanSent = messages.some((m) => !m.isSystem && m.senderId === billingWomanId);
+    if (!billingManId || !billingWomanId || !billingSessionStartedAt) return false;
+    const since = new Date(billingSessionStartedAt).getTime();
+    if (!Number.isFinite(since)) return false;
+    const manSent = messages.some((m) => !m.isSystem && m.senderId === billingManId && new Date(m.createdAt).getTime() >= since);
+    const womanSent = messages.some((m) => !m.isSystem && m.senderId === billingWomanId && new Date(m.createdAt).getTime() >= since);
     return manSent && womanSent;
-  }, [messages, billingManId, billingWomanId]);
+  }, [messages, billingManId, billingWomanId, billingSessionStartedAt]);
   const { minutesBilled, totalCharged, elapsedSeconds, isBilling, skipReason, stopBillingTimers } = useMiniChatBilling({
     chatId: activeChatId,
     isActive: isSessionActive && !!billingSessionId && isBillingDriver && bothReplied,
@@ -909,6 +932,7 @@ const ChatScreen = () => {
             setBillingSessionId(session.id);
             setBillingManId(session.man_user_id);
             setBillingWomanId(session.woman_user_id);
+            setBillingSessionStartedAt(session.started_at || session.created_at || new Date().toISOString());
             setIsSessionActive(true);
             console.log("[Chat] Billing session detected via INSERT:", session.id);
           }
@@ -933,6 +957,7 @@ const ChatScreen = () => {
             setBillingSessionId(session.id);
             setBillingManId(session.man_user_id);
             setBillingWomanId(session.woman_user_id);
+            setBillingSessionStartedAt(session.started_at || session.created_at || new Date().toISOString());
             setIsSessionActive(true);
             console.log("[Chat] Billing session detected via UPDATE:", session.id, session.status);
           }
@@ -942,6 +967,7 @@ const ChatScreen = () => {
               (session.man_user_id === currentUserId || session.woman_user_id === currentUserId)) {
             setIsSessionActive(false);
             setBillingSessionId(null);
+            setBillingSessionStartedAt(null);
           }
         }
       )
@@ -1088,11 +1114,11 @@ const ChatScreen = () => {
       // BUG-BILL-05 FIX: Race-resilient — retry up to 5x (250ms apart) because
       // start_chat may still be writing the row when initializeChat runs.
       try {
-        let activeSession: { id: string; man_user_id: string; woman_user_id: string; status: string } | null = null;
+        let activeSession: { id: string; man_user_id: string; woman_user_id: string; status: string; started_at?: string; created_at?: string } | null = null;
         for (let attempt = 0; attempt < 5 && !activeSession; attempt++) {
           const { data } = await supabase
             .from("active_chat_sessions")
-            .select("id, man_user_id, woman_user_id, status")
+            .select("id, man_user_id, woman_user_id, status, started_at, created_at")
             .eq("chat_id", chatId.current)
             .in("status", ["active", "pending", "billing_paused"])
             .order("created_at", { ascending: false })
@@ -1123,6 +1149,7 @@ const ChatScreen = () => {
           setBillingSessionId(activeSession.id);
           setBillingManId(activeSession.man_user_id);
           setBillingWomanId(activeSession.woman_user_id);
+          setBillingSessionStartedAt(activeSession.started_at || activeSession.created_at || new Date().toISOString());
           setIsSessionActive(true);
           console.log("[Chat] Billing wired for session:", activeSession.id);
         } else {
@@ -1478,6 +1505,7 @@ const ChatScreen = () => {
 
       setIsSessionActive(false);
       setBillingSessionId(null);
+      setBillingSessionStartedAt(null);
       
       toast({
         title: "Chat Ended",
@@ -1516,6 +1544,7 @@ const ChatScreen = () => {
         });
         setIsSessionActive(false);
         setBillingSessionId(null);
+        setBillingSessionStartedAt(null);
       } catch (error) {
         console.error("[OFFLINE] Failed to end chat session:", error);
       }
@@ -2259,9 +2288,14 @@ const ChatScreen = () => {
             </div>
           )}
 
-          {/* Audio & Video Call Buttons — men only, Hindi/Bengali/Marathi/Telugu/Tamil */}
-          {currentUserGender === "male" && chatPartner && canCallEachOther(currentUserLanguage, chatPartner.preferredLanguage) && (
+          {/* Audio & Video Call Buttons — hidden unless this pair is allowed to call */}
+          {(() => {
+            const showAudioCall = currentUserGender === "male" && chatPartner && canPlaceCall && settings.audioCallEnabled !== false;
+            const showVideoCall = currentUserGender === "male" && chatPartner && canPlaceCall && settings.videoCallEnabled !== false;
+            if (!showAudioCall && !showVideoCall) return null;
+            return (
           <div className="flex items-center gap-0.5">
+            {showAudioCall && (
             <button
               className="p-1.5 rounded-full transition-colors"
               style={{ color: WA.headerText }}
@@ -2269,6 +2303,8 @@ const ChatScreen = () => {
             >
               <Phone className="w-5 h-5" />
             </button>
+            )}
+            {showVideoCall && (
             <button
               className="p-1.5 rounded-full transition-colors"
               style={{ color: WA.headerText }}
@@ -2276,8 +2312,10 @@ const ChatScreen = () => {
             >
               <Video className="w-5 h-5" />
             </button>
+            )}
           </div>
-          )}
+            );
+          })()}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-1.5 rounded-full transition-colors" style={{ color: WA.headerText }}>

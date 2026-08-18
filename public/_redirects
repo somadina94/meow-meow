@@ -1,2 +1,5 @@
+# Digital Asset Links must stay JSON (not the SPA shell).
+/.well-known/*  /.well-known/:splat  200
+
 # SPA fallback so /auth, /dashboard, etc. load index.html instead of 404.
 /*    /index.html   200

@@ -1191,11 +1191,13 @@ serve(async (req) => {
         const now = new Date();
 
         // Get messages from both parties to check two-way conversation
+        const sessionStartedAt = new Date(session.started_at || session.created_at || 0).toISOString();
         const { data: manMessages } = await supabase
           .from("chat_messages")
           .select("created_at")
           .eq("chat_id", chat_id)
           .eq("sender_id", session.man_user_id)
+          .gte("created_at", sessionStartedAt)
           .order("created_at", { ascending: false })
           .limit(1);
 
@@ -1204,6 +1206,7 @@ serve(async (req) => {
           .select("created_at")
           .eq("chat_id", chat_id)
           .eq("sender_id", session.woman_user_id)
+          .gte("created_at", sessionStartedAt)
           .order("created_at", { ascending: false })
           .limit(1);
 
@@ -1502,9 +1505,10 @@ serve(async (req) => {
           // minute was started, bill the final rounded-up minute idempotently. This
           // covers abrupt closes/offline endings where the browser cleanup misses.
           if (elapsedSeconds >= 1 && (leftoverSeconds >= 1 || fullMinutes === 0)) {
+            const sessionStartedAt = new Date(session.started_at || session.created_at || 0).toISOString();
             const [{ data: manMsgs }, { data: womanMsgs }] = await Promise.all([
-              supabase.from("chat_messages").select("id").eq("chat_id", chat_id).eq("sender_id", session.man_user_id).limit(1),
-              supabase.from("chat_messages").select("id").eq("chat_id", chat_id).eq("sender_id", session.woman_user_id).limit(1)
+              supabase.from("chat_messages").select("id").eq("chat_id", chat_id).eq("sender_id", session.man_user_id).gte("created_at", sessionStartedAt).limit(1),
+              supabase.from("chat_messages").select("id").eq("chat_id", chat_id).eq("sender_id", session.woman_user_id).gte("created_at", sessionStartedAt).limit(1)
             ]);
 
             if (manMsgs?.length && womanMsgs?.length) {

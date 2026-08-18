@@ -2,6 +2,7 @@
 *.keystore
 *.jks
 android.keystore
+.keystore-credentials
 
 # Build outputs
 android/build/

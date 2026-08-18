@@ -258,6 +258,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
             const isFull = row.participant_count >= MAX_GROUP_CALL_PARTICIPANTS;
             const key = `${row.group.id}:${row.host_id}`;
             const isJoining = joiningKey === key;
+            const canJoinCall = canJoinGroupCall(userLanguage, row.host_language);
 
             return (
               <div
@@ -307,8 +308,9 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
                   </div>
                 </div>
 
-                {/* Join button */}
+                {/* Join button — hidden when this language pair cannot call */}
                 <div className="shrink-0">
+                  {canJoinCall ? (
                   <Button
                     size="sm"
                     className={cn(
@@ -323,6 +325,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
                     {isJoining ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
                     {isFull ? 'Full' : !hasEnoughBalance ? `₹${minBalance}+` : isJoining ? '...' : 'Join'}
                   </Button>
+                  ) : null}
                 </div>
               </div>
             );

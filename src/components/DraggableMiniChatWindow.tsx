@@ -33,6 +33,7 @@ import { extractVoiceUrl, storagePathFromAttachmentUrl } from "@/lib/chat-attach
 interface DraggableMiniChatWindowProps {
   chatId: string;
   sessionId: string;
+  sessionStartedAt?: string;
   partnerId: string;
   partnerName: string;
   partnerPhoto: string | null;
@@ -54,6 +55,7 @@ interface DraggableMiniChatWindowProps {
 const DraggableMiniChatWindow = ({
   chatId,
   sessionId,
+  sessionStartedAt,
   partnerId,
   partnerName,
   partnerPhoto,
@@ -106,8 +108,8 @@ const DraggableMiniChatWindow = ({
   const manId = userGender === "male" ? currentUserId : partnerId;
   const womanId = userGender === "female" ? currentUserId : partnerId;
   const isBillingDriver = userGender === "male" && currentUserId === manId;
-  const bothReplied = messages.some((m) => !m.isSystem && m.ownerId === currentUserId)
-    && messages.some((m) => !m.isSystem && m.ownerId === partnerId);
+  const bothReplied = messages.some((m) => !m.isSystem && m.ownerId === currentUserId && (!sessionStartedAt || new Date(m.createdAt).getTime() >= new Date(sessionStartedAt).getTime()))
+    && messages.some((m) => !m.isSystem && m.ownerId === partnerId && (!sessionStartedAt || new Date(m.createdAt).getTime() >= new Date(sessionStartedAt).getTime()));
   const billingHook = useMiniChatBilling({
     chatId,
     sessionId,

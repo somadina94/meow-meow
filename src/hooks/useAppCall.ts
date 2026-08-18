@@ -183,13 +183,18 @@ export const useAppCall = (
 
   const startCallBilling = useCallback(async (callId: string, callType: CallType) => {
     if (currentUserGenderRef.current !== 'male') return;
+    if (statusRef.current !== 'active') return;
     const { data: row, error } = await supabase
       .from('video_call_sessions')
-      .select('id, man_user_id, woman_user_id')
+      .select('id, man_user_id, woman_user_id, status, started_at')
       .eq('call_id', callId)
       .maybeSingle();
     if (error || !row?.id || !row.man_user_id || !row.woman_user_id) {
       console.error('[AppCall] cannot start billing — session row missing', { callId, error });
+      return;
+    }
+    if (!row.started_at || !['active', 'answered', 'connected', 'ongoing'].includes(String(row.status || '').toLowerCase())) {
+      console.info('[AppCall] billing skipped — call not answered', { callId, status: row.status });
       return;
     }
     const b = callBillRef.current;
@@ -248,14 +253,24 @@ export const useAppCall = (
   const doEndCall = useCallback(async (callId: string, callType: CallType) => {
     if (endingRef.current) return;
     endingRef.current = true;
+    const wasAnswered = statusRef.current === 'active' || statusRef.current === 'connecting';
+    const shouldBill = statusRef.current === 'active' && !!callBillRef.current.start;
     setStatusSync('ended');
 
     channelRef.current?.send({ type: 'broadcast', event: 'call_ended', payload: {} });
 
-    await settleCallBilling(callType);
+    if (shouldBill) {
+      await settleCallBilling(callType);
+    } else if (callBillRef.current.timer) {
+      clearInterval(callBillRef.current.timer);
+      callBillRef.current.timer = null;
+    }
 
     await supabase.from('video_call_sessions')
-      .update({ status: 'completed', ended_at: new Date().toISOString() })
+      .update({
+        status: shouldBill ? 'completed' : (wasAnswered ? 'ended' : 'missed'),
+        ended_at: new Date().toISOString(),
+      })
       .eq('call_id', callId);
 
     cleanup();
@@ -355,6 +370,7 @@ export const useAppCall = (
       status: 'ringing',
       call_type: callType,
       rate_per_minute: rate,
+      started_at: null,
     } as any);
 
     // Signalling channel

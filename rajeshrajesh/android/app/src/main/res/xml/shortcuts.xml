@@ -1,45 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Long-press app icon shortcuts. Each opens a deep link into the web app. -->
-<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <shortcut
-        android:shortcutId="chat"
-        android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="@string/launcherName"
-        android:shortcutLongLabel="@string/launcherName">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:targetPackage="app.lovable.meowmeow.twa"
-            android:targetClass="app.lovable.meowmeow.twa.LauncherActivity"
-            android:data="https://meow-meow.co.in/dashboard?tab=chat" />
-        <categories android:name="android.shortcut.conversation" />
+<shortcuts xmlns:android='http://schemas.android.com/apk/res/android'>
+    <shortcut android:shortcutId='shortcut0' android:enabled='true' android:icon='@drawable/shortcut_0' android:shortcutShortLabel='@string/shortcut_short_name_0' android:shortcutLongLabel='@string/shortcut_name_0'>
+        <intent android:action='android.intent.action.MAIN' android:targetPackage='app.lovable.meowmeow.twa' android:targetClass='app.lovable.meowmeow.twa.LauncherActivity' android:data='/dashboard?tab=chat' />
+        <categories android:name='android.intent.category.LAUNCHER' />
     </shortcut>
-
-    <shortcut
-        android:shortcutId="calls"
-        android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="@string/launcherName"
-        android:shortcutLongLabel="@string/launcherName">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:targetPackage="app.lovable.meowmeow.twa"
-            android:targetClass="app.lovable.meowmeow.twa.LauncherActivity"
-            android:data="https://meow-meow.co.in/dashboard?tab=calls" />
+    <shortcut android:shortcutId='shortcut1' android:enabled='true' android:icon='@drawable/shortcut_1' android:shortcutShortLabel='@string/shortcut_short_name_1' android:shortcutLongLabel='@string/shortcut_name_1'>
+        <intent android:action='android.intent.action.MAIN' android:targetPackage='app.lovable.meowmeow.twa' android:targetClass='app.lovable.meowmeow.twa.LauncherActivity' android:data='/dashboard?tab=calls' />
+        <categories android:name='android.intent.category.LAUNCHER' />
     </shortcut>
-
-    <shortcut
-        android:shortcutId="wallet"
-        android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="@string/launcherName"
-        android:shortcutLongLabel="@string/launcherName">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:targetPackage="app.lovable.meowmeow.twa"
-            android:targetClass="app.lovable.meowmeow.twa.LauncherActivity"
-            android:data="https://meow-meow.co.in/wallet" />
+    <shortcut android:shortcutId='shortcut2' android:enabled='true' android:icon='@drawable/shortcut_2' android:shortcutShortLabel='@string/shortcut_short_name_2' android:shortcutLongLabel='@string/shortcut_name_2'>
+        <intent android:action='android.intent.action.MAIN' android:targetPackage='app.lovable.meowmeow.twa' android:targetClass='app.lovable.meowmeow.twa.LauncherActivity' android:data='/wallet' />
+        <categories android:name='android.intent.category.LAUNCHER' />
     </shortcut>
-
 </shortcuts>

@@ -368,6 +368,7 @@ const EnhancedParallelChatsContainer = ({
             key={chat.chatId}
             chatId={chat.chatId}
             sessionId={chat.id}
+            sessionStartedAt={chat.startedAt}
             partnerId={chat.partnerId}
             partnerName={chat.partnerName}
             partnerPhoto={chat.partnerPhoto}

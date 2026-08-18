@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.lovable.meowmeow.twa",
+      "sha256_cert_fingerprints": ["F4:FA:D0:52:CE:DB:BB:FF:90:94:DC:BD:C3:7F:30:12:19:31:40:CC:2C:C3:A0:E6:23:8B:B8:C1:27:E1:BE:DB"]
+    }
+  }
+]
