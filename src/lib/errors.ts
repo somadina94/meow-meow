@@ -106,6 +106,18 @@ const AUTH_ERROR_MAP: Record<string, { title: string; message: string; retryable
     retryable: false,
     action: 'Log in',
   },
+  bad_jwt: {
+    title: 'Session expired',
+    message: 'Your session has expired. Please log in again to continue.',
+    retryable: false,
+    action: 'Log in',
+  },
+  forbidden: {
+    title: 'Session expired',
+    message: 'Your session has expired. Please log in again to continue.',
+    retryable: false,
+    action: 'Log in',
+  },
   // Password errors
   same_password: {
     title: 'Same password',
@@ -454,7 +466,7 @@ export function classifyError(error: unknown, context?: string): AppError {
     if (msg.includes('already') && msg.includes('registered')) {
       return { ...AUTH_ERROR_MAP.user_already_exists, category: ErrorCategory.AUTH, raw };
     }
-    if (msg.includes('expired') || msg.includes('token')) {
+    if (msg.includes('expired') || msg.includes('token') || msg.includes('jwt') || msg.includes('forbidden') || errObj.status === 403) {
       return { ...AUTH_ERROR_MAP.token_expired, category: ErrorCategory.AUTH, raw };
     }
     if (msg.includes('rate limit')) {

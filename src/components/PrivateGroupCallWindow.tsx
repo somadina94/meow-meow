@@ -1,4 +1,4 @@
-import { classifyError, ERROR_MESSAGES, logError } from "@/lib/errors";
+import { classifyError } from "@/lib/errors";
 /**
  * PrivateGroupCallWindow
  * 
@@ -83,6 +83,8 @@ interface PrivateGroupCallWindowProps {
     owner_language?: string | null;
   };
   currentUserId: string;
+  /** auth user_id of the woman this viewer joined (live host) */
+  hostUserId?: string | null;
   userName: string;
   userPhoto: string | null;
   onClose: () => void;
@@ -98,6 +100,7 @@ const QUICK_EMOJIS = ['❤️', '🔥', '😂', '👏', '😍', '🎉'];
 export function PrivateGroupCallWindow({
   group,
   currentUserId,
+  hostUserId = null,
   userName,
   userPhoto,
   onClose,
@@ -121,6 +124,7 @@ export function PrivateGroupCallWindow({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showGiftDialog, setShowGiftDialog] = useState(false);
   const [gifts, setGifts] = useState<GiftItem[]>([]);
+  const [sendingGiftId, setSendingGiftId] = useState<string | null>(null);
   const [showEmojiBar, setShowEmojiBar] = useState(false);
   // GRP-F-007 FIX: Removed unused isScreenSharing (was misleadingly named)
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
@@ -472,36 +476,32 @@ export function PrivateGroupCallWindow({
   };
 
   const handleSendGift = async (gift: GiftItem) => {
+    if (sendingGiftId) return;
+    setSendingGiftId(gift.id);
     try {
-      // Resolve sender (man) profile id; host is resolved server-side from private_groups.current_host_id
-      const { data: manProf } = await supabase
-        .from('profiles').select('id').eq('user_id', currentUserId).maybeSingle();
-      if (!manProf?.id) throw new Error('Profile not found');
-
-      // Reference ID must be unique per send to avoid idempotency dedup (catalog gift.id is reused)
+      // Pass auth user_id — the RPC resolves wallets/host. Do not call getUser()
+      // (GET /auth/v1/user 403s on a stale JWT and aborts the send).
       const uniqueRef = (typeof crypto !== 'undefined' && crypto.randomUUID)
         ? `gift_${group.id}_${gift.id}_${crypto.randomUUID()}`
         : `gift_${group.id}_${gift.id}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const { data, error } = await supabase.rpc('bill_group_gift_or_tip', {
         p_group_id: group.id,
-        p_man_id: manProf.id,
+        p_man_id: currentUserId,
         p_amount: gift.price ?? 0,
         p_type: 'gift',
         p_description: `Group gift: ${gift.name ?? gift.emoji}`,
         p_reference_id: uniqueRef,
+        ...(hostUserId ? { p_host_id: hostUserId } : {}),
       });
 
       if (error) throw error;
       const result = data as { success: boolean; error?: string };
 
       if (result.success) {
-        // Show gift locally for sender immediately
         addAnimatedGift(userName, gift);
         toast.success(`${gift.emoji} Gift sent!`);
         setShowGiftDialog(false);
 
-        // Broadcast gift to all participants via group_messages with a special prefix
-        // Include sender's actual name so all recipients display it correctly
         const { error: msgErr } = await supabase
           .from('group_messages')
           .insert({
@@ -511,10 +511,17 @@ export function PrivateGroupCallWindow({
           });
         if (msgErr) console.error('Failed to broadcast gift message:', msgErr);
       } else {
-        toast.error(result.error || 'Failed to send gift');
+        const errText = result.error || 'Failed to send gift';
+        if (/insufficient/i.test(errText)) {
+          toast.error('Insufficient balance', { description: 'Top up your wallet to send this gift.' });
+        } else {
+          toast.error(errText);
+        }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error('Gift not sent', { description: classifyError(error, 'send the gift').message });
+    } finally {
+      setSendingGiftId(null);
     }
   };
 
@@ -993,7 +1000,8 @@ export function PrivateGroupCallWindow({
               <button
                 key={gift.id}
                 onClick={() => handleSendGift(gift)}
-                className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/50 bg-card hover:bg-accent hover:border-primary/50 transition-all hover:scale-105 active:scale-95"
+                disabled={sendingGiftId !== null}
+                className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/50 bg-card hover:bg-accent hover:border-primary/50 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
               >
                 <span className="text-3xl">{gift.emoji}</span>
                 <span className="text-xs font-medium text-foreground">{gift.name}</span>

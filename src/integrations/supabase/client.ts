@@ -97,3 +97,14 @@ export const supabase = isSupabaseConfigured
       },
     })
   : dummyClient;
+
+/** In-memory session only. Never hits GET /auth/v1/user (403 on expired JWTs). */
+export async function getLocalAuthUser(): Promise<{ id: string; email?: string } | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
+    return user ? { id: user.id, email: user.email } : null;
+  } catch {
+    return null;
+  }
+}

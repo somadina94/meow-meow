@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useState, memo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getLocalAuthUser } from "@/integrations/supabase/client";
 import { useIOSCaptureGuard } from "@/hooks/useIOSCaptureGuard";
 import { useAndroidCaptureGuard } from "@/hooks/useAndroidCaptureGuard";
 import { useWebCaptureGuard } from "@/hooks/useWebCaptureGuard";
@@ -41,10 +41,10 @@ const ScreenCaptureGuard = memo(({ children }: { children: React.ReactNode }) =>
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await supabase.auth.getUser();
+        const user = await getLocalAuthUser();
         if (cancelled) return;
-        const id = data.user?.id?.slice(0, 8) ?? "anon";
-        const email = data.user?.email ?? "guest";
+        const id = user?.id?.slice(0, 8) ?? "anon";
+        const email = user?.email ?? "guest";
         setTag(`${email} • ${id} • MeowMeow`);
       } catch {
         /* ignore — keep default tag */
@@ -82,10 +82,10 @@ const ScreenCaptureGuard = memo(({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     const onPrint = async () => {
       try {
-        const { data } = await supabase.auth.getUser();
-        if (data.user) {
+        const user = await getLocalAuthUser();
+        if (user) {
           await supabase.from("screen_capture_events").insert({
-            user_id: data.user.id,
+            user_id: user.id,
             event_type: "screenshot",
             platform: "web",
             user_agent: `print:${navigator.userAgent}`,

@@ -17,7 +17,7 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getLocalAuthUser } from "@/integrations/supabase/client";
 
 const THROTTLE_MS = 30_000;
 
@@ -37,10 +37,10 @@ export function useWebCaptureGuard() {
       if (now - (lastLogged[event_type] ?? 0) < THROTTLE_MS) return;
       lastLogged[event_type] = now;
       try {
-        const { data } = await supabase.auth.getUser();
-        if (!data.user) return;
+        const user = await getLocalAuthUser();
+        if (!user) return;
         await supabase.from("screen_capture_events").insert({
-          user_id: data.user.id,
+          user_id: user.id,
           event_type,
           platform: "web",
           user_agent: navigator.userAgent,

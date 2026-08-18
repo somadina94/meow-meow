@@ -337,6 +337,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
         <PrivateGroupCallWindow
           group={activeRow.group}
           currentUserId={currentUserId}
+          hostUserId={activeRow.host_id}
           userName={userName}
           userPhoto={userPhoto}
           preAcquiredStream={activeGroupStream}

@@ -4135,6 +4135,7 @@ export type Database = {
           p_amount: number
           p_description?: string
           p_group_id: string
+          p_host_id?: string
           p_man_id: string
           p_reference_id?: string
           p_type: string

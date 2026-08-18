@@ -15,7 +15,7 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getLocalAuthUser } from "@/integrations/supabase/client";
 
 interface ScreenCapturePlugin {
   addListener(
@@ -43,10 +43,10 @@ export function useAndroidCaptureGuard() {
           description: "Capture is blocked and the attempt has been logged.",
         });
         try {
-          const { data } = await supabase.auth.getUser();
-          if (data.user) {
+          const user = await getLocalAuthUser();
+          if (user) {
             await supabase.from("screen_capture_events").insert({
-              user_id: data.user.id,
+              user_id: user.id,
               event_type: "screenshot",
               platform: "android",
               user_agent: navigator.userAgent,
@@ -63,10 +63,10 @@ export function useAndroidCaptureGuard() {
         setIsRecording(!!rec);
         if (rec) {
           try {
-            const { data } = await supabase.auth.getUser();
-            if (data.user) {
+            const user = await getLocalAuthUser();
+            if (user) {
               await supabase.from("screen_capture_events").insert({
-                user_id: data.user.id,
+                user_id: user.id,
                 event_type: "recording_started",
                 platform: "android",
                 user_agent: navigator.userAgent,

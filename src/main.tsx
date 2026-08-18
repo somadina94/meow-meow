@@ -42,8 +42,17 @@ async function recoverFromStaleBundle() {
   }
 }
 
+function isIgnorableWindowError(event: ErrorEvent): boolean {
+  // Resource load failures (img/script/video) and cross-origin "Script error."
+  // set event.error to null. Those are not app crashes.
+  if (event.error == null) return true;
+  const msg = String(event.message || event.error?.message || "");
+  return /resizeobserver loop|script error\.?$/i.test(msg);
+}
+
 // Global error handler — catches anything that slips through React ErrorBoundary
 window.addEventListener("error", (event) => {
+  if (isIgnorableWindowError(event)) return;
   const msg = event.error?.message || event.message || "";
   if (isStaleBundleError(msg)) { void recoverFromStaleBundle(); return; }
   console.error("[FATAL] Uncaught error:", event.error);
@@ -51,6 +60,7 @@ window.addEventListener("error", (event) => {
 });
 
 window.addEventListener("unhandledrejection", (event) => {
+  if (event.reason == null) return;
   const msg = event.reason instanceof Error ? event.reason.message : String(event.reason || "");
   if (isStaleBundleError(msg)) { void recoverFromStaleBundle(); return; }
   console.error("[FATAL] Unhandled rejection:", event.reason);

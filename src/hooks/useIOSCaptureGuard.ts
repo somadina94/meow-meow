@@ -18,7 +18,7 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getLocalAuthUser } from "@/integrations/supabase/client";
 
 interface ScreenCapturePlugin {
   addListener(
@@ -46,10 +46,10 @@ export function useIOSCaptureGuard() {
           description: "This action has been logged for security review.",
         });
         try {
-          const { data } = await supabase.auth.getUser();
-          if (data.user) {
+          const user = await getLocalAuthUser();
+          if (user) {
             await supabase.from("screen_capture_events").insert({
-              user_id: data.user.id,
+              user_id: user.id,
               event_type: "screenshot",
               platform: "ios",
               user_agent: navigator.userAgent,
@@ -66,10 +66,10 @@ export function useIOSCaptureGuard() {
         setIsRecording(!!rec);
         if (rec) {
           try {
-            const { data } = await supabase.auth.getUser();
-            if (data.user) {
+            const user = await getLocalAuthUser();
+            if (user) {
               await supabase.from("screen_capture_events").insert({
-                user_id: data.user.id,
+                user_id: user.id,
                 event_type: "recording_started",
                 platform: "ios",
                 user_agent: navigator.userAgent,

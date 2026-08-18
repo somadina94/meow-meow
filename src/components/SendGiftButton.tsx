@@ -66,8 +66,8 @@ export const SendGiftButton = ({
     try {
       let senderAuthId = senderUserId;
       if (!senderAuthId) {
-        const { data: u } = await supabase.auth.getUser();
-        senderAuthId = u.user?.id;
+        const { data } = await supabase.auth.getSession();
+        senderAuthId = data.session?.user?.id;
       }
       if (!senderAuthId) throw new Error('Not signed in');
 
