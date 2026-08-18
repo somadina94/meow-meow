@@ -50,6 +50,30 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
 
   const activeRowRef = useRef(activeRow);
   activeRowRef.current = activeRow;
+  const activeGroupStreamRef = useRef(activeGroupStream);
+  activeGroupStreamRef.current = activeGroupStream;
+
+  const closeActiveCall = async (message?: string) => {
+    const row = activeRowRef.current;
+    if (!row) return;
+    if (message) toast.info(message);
+    const stream = activeGroupStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      setActiveGroupStream(null);
+    }
+    const groupId = row.group.id;
+    setActiveRow(null);
+    try {
+      const { error } = await supabase.rpc('leave_group_atomic', { p_group_id: groupId, p_user_id: currentUserId });
+      if (error) {
+        await supabase.from('group_memberships').update({ has_access: false, joined_host_id: null })
+          .eq('group_id', groupId).eq('user_id', currentUserId);
+      }
+    } catch (e) {
+      console.error('[AvailableGroups] Leave group error:', e);
+    }
+  };
 
   useEffect(() => {
     fetchRows();
@@ -74,7 +98,11 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
       if (hErr) throw hErr;
 
       const list = (hosts as any[]) || [];
-      if (list.length === 0) { setRows([]); return; }
+      if (list.length === 0) {
+        setRows([]);
+        if (activeRowRef.current) await closeActiveCall('Host ended the live session');
+        return;
+      }
 
       const groupIds = Array.from(new Set(list.map(h => h.group_id)));
       const hostIds = Array.from(new Set(list.map(h => h.host_id)));
@@ -107,13 +135,9 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
 
       setRows(built);
 
-      // If host I joined ended their session, drop me
       if (activeRowRef.current) {
         const stillLive = list.some(h => h.host_id === activeRowRef.current!.host_id && h.group_id === activeRowRef.current!.group.id);
-        if (!stillLive) {
-          toast.info('Host ended the live session');
-          setActiveRow(null);
-        }
+        if (!stillLive) await closeActiveCall('Host ended the live session');
       }
     } catch (error) {
       console.error('Error fetching live hosts:', error);
@@ -193,20 +217,8 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
   };
 
   const handleLeaveGroup = async () => {
-    if (activeRow) {
-      if (activeGroupStream) { activeGroupStream.getTracks().forEach(t => t.stop()); setActiveGroupStream(null); }
-      const groupId = activeRow.group.id;
-      try {
-        const { error } = await supabase.rpc('leave_group_atomic', { p_group_id: groupId, p_user_id: currentUserId });
-        if (error) {
-          console.warn('[AvailableGroups] leave_group_atomic RPC failed, fallback:', error);
-          await supabase.from('group_memberships').update({ has_access: false, joined_host_id: null })
-            .eq('group_id', groupId).eq('user_id', currentUserId);
-        }
-      } catch (e) { console.error('[AvailableGroups] Leave group error:', e); }
-      fetchRows();
-    }
-    setActiveRow(null);
+    await closeActiveCall();
+    fetchRows();
   };
 
   if (isLoading) return <div className="animate-pulse h-32 bg-muted/30 rounded-lg" />;

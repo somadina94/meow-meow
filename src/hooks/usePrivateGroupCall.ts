@@ -55,6 +55,8 @@ interface UsePrivateGroupCallProps {
   userName: string;
   userPhoto?: string | null;
   hostLanguage?: string | null;
+  /** auth user_id of the live host this viewer joined */
+  hostUserId?: string | null;
   isOwner: boolean;
   giftAmountRequired: number;
   preAcquiredStream?: MediaStream | null;
@@ -86,6 +88,7 @@ export function usePrivateGroupCall({
   userName,
   userPhoto,
   hostLanguage,
+  hostUserId = null,
   isOwner,
   giftAmountRequired,
   preAcquiredStream,
@@ -117,6 +120,31 @@ export function usePrivateGroupCall({
   const billingRef = useRef<NodeJS.Timeout | null>(null);
   const billingInProgressRef = useRef<boolean>(false);
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const cleanupRef = useRef<(manualLeave?: boolean) => void>(() => {});
+  const onSessionEndRef = useRef(onSessionEnd);
+  onSessionEndRef.current = onSessionEnd;
+  const hostUserIdRef = useRef<string | null>(hostUserId ?? null);
+  hostUserIdRef.current = hostUserId ?? null;
+  const sessionEndedRef = useRef(false);
+  const hostStreamRef = useRef<MediaStream | null>(null);
+  const finishViewerSessionRef = useRef<(refunded: boolean) => void>(() => {});
+
+  const finishViewerSession = useCallback((refunded: boolean) => {
+    if (isOwner || sessionEndedRef.current) return;
+    sessionEndedRef.current = true;
+    setState(prev => ({
+      ...prev,
+      hostStatus: 'left',
+      hostStream: null,
+      isConnected: false,
+      isConnecting: false,
+      isLive: false,
+    }));
+    hostStreamRef.current = null;
+    cleanupRef.current(false);
+    onSessionEndRef.current?.(refunded);
+  }, [isOwner]);
+  finishViewerSessionRef.current = finishViewerSession;
 
   // ICE servers: free open-source STUN only + optional self-hosted coturn TURN
   // No paid third-party TURN services used.
@@ -183,6 +211,7 @@ export function usePrivateGroupCall({
           videoReadyState: videoTracks.map(t => t.readyState),
         });
         setState(prev => ({ ...prev, hostStream: remoteStream }));
+        hostStreamRef.current = remoteStream;
         
         // Also try to attach to video element immediately if available
         if (remoteVideoRef.current) {
@@ -195,30 +224,31 @@ export function usePrivateGroupCall({
 
     pc.onconnectionstatechange = () => {
       console.log(`[PrivateGroupCall] Connection state with ${participantId}:`, pc.connectionState);
+      if (isOwner) return;
       if (pc.connectionState === 'failed') {
-        console.warn(`[PrivateGroupCall] Connection failed with ${participantId}, attempting reconnect...`);
         pc.close();
         peerConnections.current.delete(participantId);
-        
-        // Auto-retry after a delay
-        setTimeout(() => {
-          if (!isOwner && channelRef.current) {
-            // Participant: resend ready signal so host re-initiates
-            console.log(`[PrivateGroupCall] Participant resending ready signal after failure`);
-            channelRef.current.send({
-              type: 'broadcast',
-              event: 'participant-ready',
-              payload: { participantId: currentUserId },
-            });
-          }
-          // Host retry is handled via participant-ready handler
-        }, 1000);
+      }
+      if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
+        setTimeout(async () => {
+          if (sessionEndedRef.current) return;
+          const hostId = hostUserIdRef.current || sessionRef.current?.hostId;
+          if (!hostId) return;
+          const { data } = await supabase
+            .from('group_active_hosts')
+            .select('id')
+            .eq('group_id', groupId)
+            .eq('host_id', hostId)
+            .eq('is_active', true)
+            .maybeSingle();
+          if (!data) finishViewerSessionRef.current(true);
+        }, 1500);
       }
     };
 
     peerConnections.current.set(participantId, pc);
     return pc;
-  }, [currentUserId, isOwner]);
+  }, [currentUserId, isOwner, groupId]);
 
   // Handle incoming WebRTC offer
   const handleOffer = useCallback(async (offer: RTCSessionDescriptionInit, fromId: string) => {
@@ -469,8 +499,9 @@ export function usePrivateGroupCall({
     let missedHostCycles = 0;
 
     billingRef.current = setInterval(async () => {
-      if (!sessionRef.current) return;
-      
+      if (sessionEndedRef.current || !sessionRef.current) return;
+      if (!isOwner && !hostStreamRef.current) return;
+
       if (!isOwner) {
         // Participants track consecutive cycles without a host billing update.
         // The RPC returns duplicate_skipped when host already billed this cycle.
@@ -508,6 +539,10 @@ export function usePrivateGroupCall({
           if (!manProfile?.id || !womanProfile?.id) return;
 
           const r = await billGroupCallMinute(session.sessionId, 1.0, manProfile.id, womanProfile.id, minuteIdx);
+          if (r.skipped === 'host_not_live') {
+            finishViewerSessionRef.current(true);
+            return;
+          }
           if (!r.success && r.error?.includes('Insufficient balance')) {
             console.warn('[GROUP] Viewer ejected — insufficient balance');
             toast.error('Insufficient balance — leaving call');
@@ -587,8 +622,32 @@ export function usePrivateGroupCall({
       .on('presence', { event: 'sync' }, () => {
         const presenceState = channel.presenceState();
         const participantIds = Object.keys(presenceState);
-        
-        setState(prev => ({ ...prev, viewerCount: participantIds.length }));
+        if (sessionRef.current) {
+          for (const key of participantIds) {
+            if (sessionRef.current.participants.has(key)) continue;
+            const meta = (presenceState[key]?.[0] || {}) as { name?: string; photo?: string; isOwner?: boolean };
+            const isHost = meta.isOwner === true
+              || key === hostUserIdRef.current
+              || key === sessionRef.current.hostId;
+            sessionRef.current.participants.set(key, {
+              id: key,
+              name: meta.name || (isHost ? 'Host' : 'Unknown'),
+              photo: meta.photo,
+              isOwner: isHost,
+              joinedAt: Date.now(),
+              amountPaid: 0,
+              balanceRemaining: 0,
+              micEnabled: isHost,
+            });
+          }
+          setState(prev => ({
+            ...prev,
+            viewerCount: participantIds.length,
+            participants: Array.from(sessionRef.current?.participants.values() || []),
+          }));
+        } else {
+          setState(prev => ({ ...prev, viewerCount: participantIds.length }));
+        }
       })
       .on('presence', { event: 'join' }, async ({ key, newPresences }) => {
         if (key === currentUserId) return;
@@ -656,7 +715,8 @@ export function usePrivateGroupCall({
       .on('presence', { event: 'leave' }, ({ key }) => {
         // Capture whether the leaver was the host BEFORE we delete them
         const leaver = sessionRef.current?.participants.get(key);
-        const leaverWasHost = leaver?.isOwner === true;
+        const hostId = hostUserIdRef.current || sessionRef.current?.hostId;
+        const leaverWasHost = leaver?.isOwner === true || (!!hostId && key === hostId);
 
         if (sessionRef.current) {
           sessionRef.current.participants.delete(key);
@@ -682,11 +742,8 @@ export function usePrivateGroupCall({
         // and we did NOT receive an explicit `stream-ended` broadcast, every
         // participant should be auto-disconnected from the call.
         if (leaverWasHost && !isOwner) {
-          setState(prev => ({ ...prev, hostStatus: 'left' }));
           toast.info('Host disconnected. The call has ended.');
-          // Host dropped — end the call but keep participants in the group
-          cleanup(false);
-          onSessionEnd?.(true); // refund unused balance
+          finishViewerSessionRef.current(true);
           return;
         }
         
@@ -706,11 +763,8 @@ export function usePrivateGroupCall({
       })
       .on('broadcast', { event: 'stream-ended' }, ({ payload }) => {
         if (!isOwner) {
-          setState(prev => ({ ...prev, hostStatus: 'left' }));
-          toast.info(payload.refunded ? 'Host ended the call. Unused balance refunded.' : 'The call has ended.');
-          // Host explicitly ended call — keep participants in the group
-          cleanup(false);
-          onSessionEnd?.(payload.refunded);
+          toast.info(payload.refunded ? 'Host ended the call.' : 'The call has ended.');
+          finishViewerSessionRef.current(!!payload.refunded);
         }
       })
       .on('broadcast', { event: 'participant-removed' }, ({ payload }) => {
@@ -847,6 +901,7 @@ export function usePrivateGroupCall({
         return false;
       }
 
+      sessionEndedRef.current = false;
       const sessionId = (typeof crypto !== 'undefined' && crypto.randomUUID)
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -983,61 +1038,45 @@ export function usePrivateGroupCall({
         return false;
       }
 
-      await setupSignaling();
-
-      // Viewer-side: fetch host's active stream_id and store as our sessionRef so we can
-      // self-bill (host's billing is best-effort and may miss short sessions).
-      try {
-        const { data: gah } = await supabase
-          .from('group_active_hosts')
-          .select('stream_id, host_id, started_at')
-          .eq('group_id', groupId)
-          .eq('is_active', true)
-          .order('started_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (gah?.stream_id && gah?.host_id) {
-          sessionRef.current = {
-            sessionId: gah.stream_id,
-            groupId,
-            hostId: gah.host_id,
-            startTime: gah.started_at ? new Date(gah.started_at).getTime() : Date.now(),
-            participants: new Map(),
-            totalEarnings: 0,
-          };
-
-          // Immediate self-bill for minute 0 so wallet_transactions always has a row,
-          // even if this man leaves before the first per-minute tick fires.
-          (async () => {
-            try {
-              const [{ data: manProfile }, { data: womanProfile }] = await Promise.all([
-                supabase.from('profiles').select('id').eq('user_id', currentUserId).maybeSingle(),
-                supabase.from('profiles').select('id').eq('user_id', gah.host_id).maybeSingle(),
-              ]);
-              if (manProfile?.id && womanProfile?.id) {
-                const r = await billGroupCallMinute(gah.stream_id, 1.0, manProfile.id, womanProfile.id, 0);
-                if (!r.success) {
-                  console.warn('[GROUP] Viewer self-bill on join failed:', r.error);
-                  if (r.error?.includes('Insufficient balance')) {
-                    toast.error('Insufficient balance');
-                  }
-                }
-              }
-            } catch (err) {
-              console.error('[GROUP] Viewer self-bill error:', err);
-            }
-          })();
-        }
-      } catch (err) {
-        console.warn('[GROUP] Could not load host stream for viewer billing:', err);
+      if (sessionEndedRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        setState(prev => ({ ...prev, isConnecting: false }));
+        return false;
       }
 
-      startBillingTimer(); // Start billing fallback timer for participant
+      let hostQuery = supabase
+        .from('group_active_hosts')
+        .select('stream_id, host_id, started_at')
+        .eq('group_id', groupId)
+        .eq('is_active', true);
+      if (hostUserId) hostQuery = hostQuery.eq('host_id', hostUserId);
+      const { data: gah } = await hostQuery
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      setState(prev => ({ 
-        ...prev, 
-        isConnecting: false, 
+      if (!gah?.stream_id || !gah?.host_id) {
+        toast.info('Host ended the call.');
+        setState(prev => ({ ...prev, isConnecting: false }));
+        finishViewerSessionRef.current(false);
+        return false;
+      }
+
+      sessionRef.current = {
+        sessionId: gah.stream_id,
+        groupId,
+        hostId: gah.host_id,
+        startTime: gah.started_at ? new Date(gah.started_at).getTime() : Date.now(),
+        participants: new Map(),
+        totalEarnings: 0,
+      };
+
+      await setupSignaling();
+      startBillingTimer();
+
+      setState(prev => ({
+        ...prev,
+        isConnecting: false,
         isConnected: true,
       }));
 
@@ -1052,7 +1091,7 @@ export function usePrivateGroupCall({
       }));
       return false;
     }
-  }, [isOwner, checkCanJoin, initParticipantMedia, setupSignaling, startBillingTimer, pricing.groupCallRatePerMinute]);
+  }, [isOwner, checkCanJoin, initParticipantMedia, setupSignaling, startBillingTimer, pricing.groupCallRatePerMinute, groupId, hostUserId]);
 
   // Cleanup - stops media, peer connections, channel
   // Only revokes group_memberships access when participant explicitly leaves (manualLeave=true).
@@ -1157,6 +1196,7 @@ export function usePrivateGroupCall({
     }
 
     sessionRef.current = null;
+    hostStreamRef.current = null;
 
     setState({
       isConnecting: false,
@@ -1169,9 +1209,11 @@ export function usePrivateGroupCall({
       totalEarnings: 0,
       isRefunding: false,
       hostStream: null,
-      hostStatus: 'live',
+      hostStatus: sessionEndedRef.current ? 'left' : 'live',
     });
   }, [isOwner, groupId, currentUserId]);
+
+  cleanupRef.current = cleanup;
 
   // End stream (host only) - broadcasts to participants and cleans up WebRTC
   // DB cleanup is handled by the parent component's handleStopLive
@@ -1254,14 +1296,50 @@ export function usePrivateGroupCall({
 
   // Cleanup on unmount only (not on every cleanup-identity change, which would
   // wrongly tear down an active live session whenever deps churn).
-  const cleanupRef = useRef(cleanup);
-  cleanupRef.current = cleanup;
   useEffect(() => {
     return () => {
       cleanupRef.current();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Viewers: leave immediately when this host row goes inactive (broadcast can be missed).
+  useEffect(() => {
+    if (isOwner) return;
+    const hostId = hostUserId;
+    if (!hostId || !groupId) return;
+
+    const kickIfHostGone = async () => {
+      if (sessionEndedRef.current) return;
+      const { data, error } = await supabase
+        .from('group_active_hosts')
+        .select('id')
+        .eq('group_id', groupId)
+        .eq('host_id', hostId)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (error) return;
+      if (!data) finishViewerSessionRef.current(true);
+    };
+
+    const channel = supabase
+      .channel(`host-gone-${groupId}-${hostId}-${currentUserId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'group_active_hosts',
+        filter: `host_id=eq.${hostId}`,
+      }, () => { void kickIfHostGone(); })
+      .subscribe();
+
+    const poll = window.setInterval(() => { void kickIfHostGone(); }, 4000);
+    void kickIfHostGone();
+
+    return () => {
+      window.clearInterval(poll);
+      supabase.removeChannel(channel);
+    };
+  }, [isOwner, groupId, hostUserId, currentUserId]);
 
   // Host: broadcast 'away' / 'live' on tab visibility changes while live
   useEffect(() => {

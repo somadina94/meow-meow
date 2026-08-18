@@ -157,6 +157,9 @@ export async function billMinute(
   const parsed = (typeof data === 'string' ? JSON.parse(data) : data) as BillingResult | null;
   if (!parsed) return { success: false, error: 'No response' };
   if (!parsed.success) {
+    if (parsed.skipped === 'host_not_live' || parsed.skipped === 'waiting_for_replies' || parsed.skipped === 'not_answered') {
+      return parsed;
+    }
     console.error('[billing] RPC rejected', { sessionType, sessionId, minuteIndex, parsed });
   }
   return parsed;

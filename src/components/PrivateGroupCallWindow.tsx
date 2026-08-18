@@ -165,6 +165,7 @@ export function PrivateGroupCallWindow({
     userName,
     userPhoto,
     hostLanguage: group.owner_language || null,
+    hostUserId: hostUserId || undefined,
     isOwner,
     giftAmountRequired: group.min_gift_amount,
     preAcquiredStream,
@@ -178,10 +179,10 @@ export function PrivateGroupCallWindow({
         toast.info('A participant left');
       }
     },
-    onSessionEnd: (refunded) => {
-      if (refunded && !isOwner) {
-        toast.success('Call ended by host. Unused balance has been refunded.');
-      }
+    onSessionEnd: () => {
+      if (isOwner || isStoppingRef.current) return;
+      isStoppingRef.current = true;
+      onClose();
     },
   });
 
@@ -601,7 +602,11 @@ export function PrivateGroupCallWindow({
           </div>
         ) : (
           <div className="relative w-full h-full">
-            {isConnected && hostStream ? (
+            {hostStatus === 'left' ? (
+              <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                <p className="text-sm text-gray-300">Host left the call</p>
+              </div>
+            ) : isConnected && hostStream ? (
               <video
                 ref={(el) => {
                   if (el) {

@@ -4471,6 +4471,13 @@ export type Database = {
         }
         Returns: Json
       }
+      leave_group_atomic: {
+        Args: {
+          p_group_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       ledger_recharge: {
         Args: {
           p_amount: number
