@@ -57,6 +57,7 @@ import { MatchFiltersPanel, MatchFilters } from "@/components/MatchFiltersPanel"
 import { AppHeader } from "@/components/AppHeader";
 import { AppBottomTabs, getWomenTabs } from "@/components/AppBottomTabs";
 import GroupChatTab from "@/components/GroupChatTab";
+import { isIndianCallLanguage } from "@/lib/call-languages";
 
 import { UserContactCard } from "@/components/UserContactCard";
 import { isVisibilityStatusChange } from "@/lib/presence";
@@ -135,7 +136,8 @@ const WomenDashboardScreen = () => {
   const [userName, setUserName] = useState("");
   const [appId, setAppId] = useState<string | null>(null);
   const [userPhoto, setUserPhoto] = useState<string | null>(null); // User's photo for chat validation
-  const { incomingCall, clearIncomingCall } = useIncomingCallListener(currentUserId || null, "female");
+  const [currentWomanLanguage, setCurrentWomanLanguage] = useState<string>("");
+  const { incomingCall, clearIncomingCall } = useIncomingCallListener(currentUserId || null, "female", currentWomanLanguage);
   const { status: callStatus, activeCall, isMuted, isCameraOff, acceptCall, declineCall, endCall, toggleMute, toggleCamera } = useAppCall(currentUserId || null, 'female', 0);
   const [rechargedMen, setRechargedMen] = useState<OnlineMan[]>([]);
   const [nonRechargedMen, setNonRechargedMen] = useState<OnlineMan[]>([]);
@@ -323,7 +325,6 @@ const WomenDashboardScreen = () => {
     };
   }, []);
 
-  const [currentWomanLanguage, setCurrentWomanLanguage] = useState<string>("");
   const currentWomanLanguageRef = useRef(currentWomanLanguage);
   const [currentWomanLanguageCode, setCurrentWomanLanguageCode] = useState<string>("eng_Latn");
   const [currentWomanCountry, setCurrentWomanCountry] = useState<string>("");
@@ -333,6 +334,11 @@ const WomenDashboardScreen = () => {
   // Keep refs in sync so throttled callback always has latest values
   useEffect(() => { currentWomanLanguageRef.current = currentWomanLanguage; }, [currentWomanLanguage]);
   useEffect(() => { currentWomanCountryRef.current = currentWomanCountry; }, [currentWomanCountry]);
+  useEffect(() => {
+    if (activeTab === "groups" && !isIndianCallLanguage(currentWomanLanguage)) {
+      setActiveTab("online");
+    }
+  }, [activeTab, currentWomanLanguage]);
 
   const { playMessageSound } = useMessageSound();
 
@@ -1145,7 +1151,8 @@ const WomenDashboardScreen = () => {
 
   const onlineMenCount = sameLanguageMen.length + otherLanguageMen.length;
   const totalUnreadCount = womenActiveChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-  const womenTabs = getWomenTabs(onlineMenCount || undefined, totalUnreadCount || activeChatCount || undefined, matchedMen.length || undefined, !!appSettings.statementsTabVisible, appSettings.chatEnabled !== false, appSettings.privateGroupsEnabled !== false, isTL);
+  const showCallGroups = appSettings.privateGroupsEnabled !== false && isIndianCallLanguage(currentWomanLanguage);
+  const womenTabs = getWomenTabs(onlineMenCount || undefined, totalUnreadCount || activeChatCount || undefined, matchedMen.length || undefined, !!appSettings.statementsTabVisible, appSettings.chatEnabled !== false, showCallGroups, isTL);
 
   const renderOnlineUsersTab = () => (
     <div className="min-h-0 h-full overflow-y-auto overscroll-contain scroll-smooth">
@@ -1459,7 +1466,7 @@ const WomenDashboardScreen = () => {
       </div>
       {currentUserId ? (
         <div className="px-4 py-3">
-          <PrivateGroupsSection key={groupsRefreshKey} currentUserId={currentUserId} userName={userName || 'User'} userPhoto={userPhoto} />
+          <PrivateGroupsSection key={groupsRefreshKey} currentUserId={currentUserId} userName={userName || 'User'} userPhoto={userPhoto} userLanguage={currentWomanLanguage} />
         </div>
       ) : (
         <div className="text-center py-10">

@@ -4,6 +4,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useAppSettings } from '@/hooks/useAppSettings';
 import { ICE_SERVERS } from '@/lib/iceServers';
 import { billMinute, billFinalPartialMinute } from '@/services/billing.service';
+import {
+  assertLanguageCallCapacity,
+  canCallEachOther,
+  CALL_LANGUAGE_UNAVAILABLE,
+  resolveProfileLanguage,
+} from '@/lib/call-languages';
+import { fetchPublicProfile } from '@/lib/profile-queries';
 
 export type CallType = 'audio' | 'video';
 export type CallStatus = 'idle' | 'calling' | 'ringing' | 'connecting' | 'active' | 'ended';
@@ -279,6 +286,22 @@ export const useAppCall = (
       return;
     }
 
+    const [{ data: selfRow }, targetProfile] = await Promise.all([
+      supabase.from('profiles').select('preferred_language, primary_language, language').eq('user_id', currentUserId).maybeSingle(),
+      fetchPublicProfile(targetUserId),
+    ]);
+    const selfLang = resolveProfileLanguage(selfRow);
+    const targetLang = resolveProfileLanguage(targetProfile);
+    if (!canCallEachOther(selfLang, targetLang)) {
+      toast({ title: 'Calls not available', description: CALL_LANGUAGE_UNAVAILABLE, variant: 'destructive' });
+      return;
+    }
+    const cap = await assertLanguageCallCapacity(selfLang, 2);
+    if (!cap.allowed) {
+      toast({ title: 'Calls full', description: cap.error || CALL_LANGUAGE_UNAVAILABLE, variant: 'destructive' });
+      return;
+    }
+
     // Check super user
     const { data: { session } } = await supabase.auth.getSession();
     const userEmail = session?.user?.email || '';
@@ -401,6 +424,20 @@ export const useAppCall = (
     callerName: string,
     callerPhoto: string | null
   ) => {
+    const [{ data: selfRow }, callerProfile] = currentUserId
+      ? await Promise.all([
+          supabase.from('profiles').select('preferred_language, primary_language, language').eq('user_id', currentUserId).maybeSingle(),
+          fetchPublicProfile(callerUserId),
+        ])
+      : [{ data: null }, null];
+    if (!canCallEachOther(resolveProfileLanguage(selfRow), resolveProfileLanguage(callerProfile))) {
+      toast({ title: 'Calls not available', description: CALL_LANGUAGE_UNAVAILABLE, variant: 'destructive' });
+      await supabase.from('video_call_sessions')
+        .update({ status: 'declined', ended_at: new Date().toISOString() })
+        .eq('call_id', callId);
+      return;
+    }
+
     let stream: MediaStream;
     try {
       stream = await acquireMedia(callType);

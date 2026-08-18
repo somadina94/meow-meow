@@ -4092,6 +4092,14 @@ export type Database = {
         Args: { p_amount: number; p_wallet_id: string }
         Returns: number
       }
+      assert_language_call_capacity: {
+        Args: { p_language: string; p_slots?: number }
+        Returns: Json
+      }
+      count_active_call_users_for_language: {
+        Args: { p_language: string }
+        Returns: number
+      }
       audit_wallet_table_grants: {
         Args: never
         Returns: {

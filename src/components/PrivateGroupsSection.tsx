@@ -7,8 +7,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from 'sonner';
 import { Users, Video, MessageCircle, Radio, Square, RefreshCw, Globe } from 'lucide-react';
 import { PrivateGroupCallWindow } from './PrivateGroupCallWindow';
-import { MAX_PARTICIPANTS } from '@/hooks/usePrivateGroupCall';
-import { INDIAN_LANGUAGES } from '@/data/supportedLanguages';
+import {
+  INDIAN_CALL_LANGUAGES,
+  isIndianCallLanguage,
+  canCallEachOther,
+  CALL_LANGUAGE_UNAVAILABLE,
+  assertLanguageCallCapacity,
+  MAX_ACTIVE_CALL_USERS_PER_LANGUAGE,
+} from '@/lib/call-languages';
 import { cn } from '@/lib/utils';
 import { getFlowerImage } from '@/assets/flowers';
 
@@ -33,9 +39,10 @@ interface ActiveHost {
 
 interface PrivateGroupsSectionProps {
   currentUserId: string; userName: string; userPhoto: string | null;
+  userLanguage?: string | null;
 }
 
-export function PrivateGroupsSection({ currentUserId, userName, userPhoto }: PrivateGroupsSectionProps) {
+export function PrivateGroupsSection({ currentUserId, userName, userPhoto, userLanguage }: PrivateGroupsSectionProps) {
   const [groups, setGroups] = useState<PrivateGroup[]>([]);
   const [activeHosts, setActiveHosts] = useState<ActiveHost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -107,12 +114,30 @@ export function PrivateGroupsSection({ currentUserId, userName, userPhoto }: Pri
       toast.error(`This group already has ${MAX_HOSTS_PER_GROUP} live hosts. Try another.`);
       return;
     }
-    setPickedLanguage(INDIAN_LANGUAGES[0]?.name || 'Hindi');
+    if (!isIndianCallLanguage(userLanguage)) {
+      toast.error(CALL_LANGUAGE_UNAVAILABLE);
+      return;
+    }
+    const cap = await assertLanguageCallCapacity(userLanguage, 1);
+    if (!cap.allowed) {
+      toast.error(cap.error || CALL_LANGUAGE_UNAVAILABLE);
+      return;
+    }
+    setPickedLanguage(userLanguage || 'Hindi');
     setPickerGroup(group);
   };
 
   const handleGoLive = async () => {
     if (!pickerGroup || !pickedLanguage) return;
+    if (!isIndianCallLanguage(userLanguage) || !canCallEachOther(userLanguage, pickedLanguage)) {
+      toast.error(CALL_LANGUAGE_UNAVAILABLE);
+      return;
+    }
+    const cap = await assertLanguageCallCapacity(pickedLanguage, 1);
+    if (!cap.allowed) {
+      toast.error(cap.error || CALL_LANGUAGE_UNAVAILABLE);
+      return;
+    }
     const group = pickerGroup;
     setGoingLive(group.id);
     setPickerGroup(null);
@@ -206,7 +231,7 @@ export function PrivateGroupsSection({ currentUserId, userName, userPhoto }: Pri
           const myHostInThisGroup = activeHosts.find(h => h.group_id === group.id && h.host_id === currentUserId);
           const isMyHost = !!myHostInThisGroup;
           const groupFull = hostCount >= MAX_HOSTS_PER_GROUP;
-          const canGoLive = !myActiveHostSession && !groupFull;
+          const canGoLive = !myActiveHostSession && !groupFull && isIndianCallLanguage(userLanguage);
 
           return (
             <div
@@ -254,7 +279,7 @@ export function PrivateGroupsSection({ currentUserId, userName, userPhoto }: Pri
                 </div>
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                    <Users className="h-2.5 w-2.5" /> {group.participant_count}/{MAX_PARTICIPANTS}
+                    <Users className="h-2.5 w-2.5" /> {group.participant_count}/{MAX_ACTIVE_CALL_USERS_PER_LANGUAGE}
                   </span>
                   <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                     <MessageCircle className="h-2.5 w-2.5" /> Chat
@@ -314,24 +339,24 @@ export function PrivateGroupsSection({ currentUserId, userName, userPhoto }: Pri
               Pick your hosting language
             </DialogTitle>
             <DialogDescription>
-              Members will see this language so they can join hosts who speak theirs.
+              Hosts go live in their profile language. Only Hindi, Bengali, Marathi, Telugu, and Tamil can host audio/video calls.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[280px] overflow-y-auto -mx-2 px-2">
             <div className="grid grid-cols-2 gap-2">
-              {INDIAN_LANGUAGES.map((lang) => (
+              {INDIAN_CALL_LANGUAGES.filter((lang) => canCallEachOther(userLanguage, lang)).map((lang) => (
                 <button
-                  key={lang.code}
+                  key={lang}
                   type="button"
-                  onClick={() => setPickedLanguage(lang.name)}
+                  onClick={() => setPickedLanguage(lang)}
                   className={cn(
                     "px-3 py-2 rounded-lg border text-sm text-left transition-colors",
-                    pickedLanguage === lang.name
+                    pickedLanguage === lang
                       ? "border-primary bg-primary/10 text-primary font-medium"
                       : "border-border hover:bg-muted"
                   )}
                 >
-                  {lang.name}
+                  {lang}
                 </button>
               ))}
             </div>

@@ -90,6 +90,7 @@ import { isVisibilityStatusChange } from "@/lib/presence";
 import { CallHistoryTab } from "@/components/CallHistoryTab";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ScrollingAnnouncementsBar } from "@/components/ScrollingAnnouncementsBar";
+import { canCallEachOther, isIndianCallLanguage } from "@/lib/call-languages";
 // TransactionStatementTab removed — billing system removed
 interface Notification {
   id: string;
@@ -903,6 +904,12 @@ const DashboardScreen = () => {
     userLanguageRef.current = userLanguage;
   }, [userLanguage]);
 
+  useEffect(() => {
+    if (activeTab === "groups" && !isIndianCallLanguage(userLanguage)) {
+      setActiveTab("online");
+    }
+  }, [activeTab, userLanguage]);
+
   function throttledFetchOnlineWomen() {
     const now = Date.now();
     const lang = userLanguageRef.current;
@@ -1377,7 +1384,8 @@ const DashboardScreen = () => {
 
   const onlineCount = sameLanguageWomen.length + indianTranslatedWomen.length;
   const totalUnreadCount = activeChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-  const menTabs = getMenTabs(onlineCount || undefined, totalUnreadCount || activeChatCount || undefined, matchedWomen.length || undefined, !!settings.statementsTabVisible, settings.chatEnabled !== false, settings.privateGroupsEnabled !== false);
+  const showCallGroups = settings.privateGroupsEnabled !== false && isIndianCallLanguage(userLanguage);
+  const menTabs = getMenTabs(onlineCount || undefined, totalUnreadCount || activeChatCount || undefined, matchedWomen.length || undefined, !!settings.statementsTabVisible, settings.chatEnabled !== false, showCallGroups);
 
   const renderOnlineUsersTab = () => (
     <div className="min-h-0 h-full overflow-y-auto overscroll-contain scroll-smooth">
@@ -1483,12 +1491,12 @@ const DashboardScreen = () => {
                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${woman.user_id}`); }}>
                               <Eye className="w-3.5 h-3.5 text-primary" />
                             </Button>
-                            {settings.audioCallEnabled !== false && userCountry === "IN" && (woman.country === 'IN' || woman.country?.toLowerCase().includes('india')) && woman.primary_language === userLanguage && (
+                            {settings.audioCallEnabled !== false && userCountry === "IN" && (woman.country === 'IN' || woman.country?.toLowerCase().includes('india')) && canCallEachOther(userLanguage, woman.primary_language) && (
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, 'audio'); }}>
                                 <Phone className="w-3.5 h-3.5 text-primary" />
                               </Button>
                             )}
-                            {settings.videoCallEnabled !== false && userCountry === "IN" && (woman.country === 'IN' || woman.country?.toLowerCase().includes('india')) && woman.primary_language === userLanguage && (
+                            {settings.videoCallEnabled !== false && userCountry === "IN" && (woman.country === 'IN' || woman.country?.toLowerCase().includes('india')) && canCallEachOther(userLanguage, woman.primary_language) && (
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, 'video'); }}>
                                 <Video className="w-3.5 h-3.5 text-primary" />
                               </Button>
@@ -1668,6 +1676,7 @@ const DashboardScreen = () => {
             currentUserId={currentUserId}
             userName={userName || 'User'}
             userPhoto={userPhoto}
+            userLanguage={userLanguage}
           />
         </div>
       ) : (

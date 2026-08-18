@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { canCallEachOther, resolveProfileLanguage } from '@/lib/call-languages';
+import { fetchPublicProfile } from '@/lib/profile-queries';
 
 export interface IncomingCallEvent {
   callId: string;
@@ -11,7 +13,8 @@ export interface IncomingCallEvent {
 
 export const useIncomingCallListener = (
   currentUserId: string | null,
-  userGender: 'male' | 'female'
+  userGender: 'male' | 'female',
+  viewerLanguage?: string | null,
 ) => {
   const [incomingCall, setIncomingCall] = useState<IncomingCallEvent | null>(null);
 
@@ -27,6 +30,10 @@ export const useIncomingCallListener = (
       }, async (payload) => {
         const row = payload.new as any;
         if (row.status !== 'ringing') return;
+
+        const callerProfile = await fetchPublicProfile(row.man_user_id);
+        const callerLang = resolveProfileLanguage(callerProfile);
+        if (!canCallEachOther(viewerLanguage, callerLang)) return;
 
         // Fetch caller profile from male_profiles
         const { data: profile } = await supabase
@@ -46,7 +53,7 @@ export const useIncomingCallListener = (
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [currentUserId, userGender]);
+  }, [currentUserId, userGender, viewerLanguage]);
 
   const clearIncomingCall = () => setIncomingCall(null);
 

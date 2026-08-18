@@ -110,6 +110,7 @@ import { useChatPresence, type PartnerPresenceState } from "@/hooks/useChatPrese
 import { PartnerStatusLine } from "@/components/chat/PartnerStatusLine";
 import { extractVoiceUrl, isTranslatableChatText, normalizeChatAttachmentUrl, storagePathFromAttachmentUrl } from "@/lib/chat-attachments";
 import { translateForViewer, isEnglishLanguage, languagesMatch } from "@/lib/translation-service";
+import { canCallEachOther } from "@/lib/call-languages";
 
 // MAX_PARALLEL_CHATS is now loaded dynamically from app_settings
 // Default fallback only used if database is unavailable
@@ -539,7 +540,7 @@ const ChatScreen = () => {
   }, [toast]);
 
   // ============= INCOMING CALLS + 1:1 CALL BILLING =============
-  const { incomingCall, clearIncomingCall } = useIncomingCallListener(currentUserId || null, currentUserGender as 'male' | 'female');
+  const { incomingCall, clearIncomingCall } = useIncomingCallListener(currentUserId || null, currentUserGender as 'male' | 'female', currentUserLanguage);
   const { status: callStatus, activeCall, isMuted, isCameraOff, initiateCall, acceptCall, declineCall, endCall, toggleMute, toggleCamera } = useAppCall(currentUserId || null, currentUserGender as 'male' | 'female', walletBalance);
 
   const refreshManWallet = useCallback(() => {
@@ -2256,8 +2257,8 @@ const ChatScreen = () => {
             </div>
           )}
 
-          {/* Audio & Video Call Buttons - Only men can initiate calls */}
-          {currentUserGender === "male" && chatPartner && (
+          {/* Audio & Video Call Buttons — men only, Hindi/Bengali/Marathi/Telugu/Tamil */}
+          {currentUserGender === "male" && chatPartner && canCallEachOther(currentUserLanguage, chatPartner.preferredLanguage) && (
           <div className="flex items-center gap-0.5">
             <button
               className="p-1.5 rounded-full transition-colors"

@@ -8,7 +8,12 @@ import { Users, Video, Radio, Loader2, RefreshCw, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getFlowerImage } from '@/assets/flowers';
 import { PrivateGroupCallWindow } from './PrivateGroupCallWindow';
-import { MAX_PARTICIPANTS } from '@/hooks/usePrivateGroupCall';
+import {
+  canCallEachOther,
+  MAX_ACTIVE_CALL_USERS_PER_LANGUAGE,
+  CALL_LANGUAGE_UNAVAILABLE,
+  assertLanguageCallCapacity,
+} from '@/lib/call-languages';
 
 interface PrivateGroup {
   id: string; owner_id: string; name: string; description: string | null;
@@ -30,12 +35,13 @@ interface LiveHostRow {
 
 interface AvailableGroupsSectionProps {
   currentUserId: string; userName: string; userPhoto: string | null;
+  userLanguage?: string | null;
 }
 
 const MIN_BALANCE_MINUTES = 5;
 const RATE_PER_MINUTE = 4;
 
-export function AvailableGroupsSection({ currentUserId, userName, userPhoto }: AvailableGroupsSectionProps) {
+export function AvailableGroupsSection({ currentUserId, userName, userPhoto, userLanguage }: AvailableGroupsSectionProps) {
   const [rows, setRows] = useState<LiveHostRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeRow, setActiveRow] = useState<LiveHostRow | null>(null);
@@ -58,7 +64,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto }: A
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [currentUserId]);
+  }, [currentUserId, userLanguage]);
 
   const fetchRows = async () => {
     try {
@@ -97,6 +103,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto }: A
           } as LiveHostRow;
         })
         .filter((x): x is LiveHostRow => x !== null)
+        .filter((x) => canCallEachOther(userLanguage, x.host_language))
         .sort((a, b) => a.group.name.localeCompare(b.group.name));
 
       setRows(built);
@@ -132,8 +139,17 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto }: A
       toast.error(`Insufficient balance. You need at least ₹${minBalance} (${MIN_BALANCE_MINUTES} minutes) to join.`);
       return;
     }
-    if (row.participant_count >= MAX_PARTICIPANTS) {
-      toast.error(`This host's room is full (max ${MAX_PARTICIPANTS} participants)`);
+    if (!canCallEachOther(userLanguage, row.host_language)) {
+      toast.error(CALL_LANGUAGE_UNAVAILABLE);
+      return;
+    }
+    if (row.participant_count >= MAX_ACTIVE_CALL_USERS_PER_LANGUAGE) {
+      toast.error(`This host's room is full (max ${MAX_ACTIVE_CALL_USERS_PER_LANGUAGE} participants)`);
+      return;
+    }
+    const cap = await assertLanguageCallCapacity(row.host_language || userLanguage || '', 1);
+    if (!cap.allowed) {
+      toast.error(cap.error || CALL_LANGUAGE_UNAVAILABLE);
       return;
     }
 
@@ -155,7 +171,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto }: A
     try {
       // Atomic join (existing RPC keeps participant_count consistent)
       const { data: joinResult, error: joinError } = await supabase.rpc('join_group_atomic', {
-        p_group_id: row.group.id, p_user_id: currentUserId, p_max_participants: MAX_PARTICIPANTS,
+        p_group_id: row.group.id, p_user_id: currentUserId, p_max_participants: MAX_ACTIVE_CALL_USERS_PER_LANGUAGE,
       });
       if (joinError) throw joinError;
       const result = joinResult as { success: boolean; error?: string; host_id?: string };
@@ -242,7 +258,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto }: A
       {rows.length > 0 && (
         <div className="divide-y divide-border/50 bg-card rounded-xl overflow-hidden border border-border/60">
           {rows.map((row) => {
-            const isFull = row.participant_count >= MAX_PARTICIPANTS;
+            const isFull = row.participant_count >= MAX_ACTIVE_CALL_USERS_PER_LANGUAGE;
             const key = `${row.group.id}:${row.host_id}`;
             const isJoining = joiningKey === key;
 
@@ -286,7 +302,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto }: A
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                      <Users className="h-2.5 w-2.5" /> {row.participant_count}/{MAX_PARTICIPANTS}
+                      <Users className="h-2.5 w-2.5" /> {row.participant_count}/{MAX_ACTIVE_CALL_USERS_PER_LANGUAGE}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
                       💰 ₹{RATE_PER_MINUTE}/min
