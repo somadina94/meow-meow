@@ -57,7 +57,7 @@ import { MatchFiltersPanel, MatchFilters } from "@/components/MatchFiltersPanel"
 import { AppHeader } from "@/components/AppHeader";
 import { AppBottomTabs, getWomenTabs } from "@/components/AppBottomTabs";
 import GroupChatTab from "@/components/GroupChatTab";
-import { isIndianCallLanguage } from "@/lib/call-languages";
+import { isIndianCallLanguage, pickCallLanguage } from "@/lib/call-languages";
 
 import { UserContactCard } from "@/components/UserContactCard";
 import { isVisibilityStatusChange } from "@/lib/presence";
@@ -697,10 +697,11 @@ const WomenDashboardScreen = () => {
           if ((data as any)?.app_id) setAppId((data as any).app_id);
         });
 
-      const womanLanguage = mainProfile?.preferred_language ||
-                           mainProfile?.primary_language ||
-                           womanLanguages?.[0]?.language_name ||
-                           "English";
+      const womanLanguage = pickCallLanguage(
+        mainProfile?.primary_language,
+        womanLanguages?.[0]?.language_name,
+        mainProfile?.preferred_language,
+      ) || "English";
       const womanLanguageCode = womanLanguages?.[0]?.language_code || "eng_Latn";
       setCurrentWomanLanguage(womanLanguage);
       setCurrentWomanLanguageCode(womanLanguageCode);

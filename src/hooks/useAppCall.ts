@@ -8,9 +8,8 @@ import {
   assertLanguageCallCapacity,
   canCallEachOther,
   CALL_LANGUAGE_UNAVAILABLE,
-  resolveProfileLanguage,
+  fetchCallLanguage,
 } from '@/lib/call-languages';
-import { fetchPublicProfile } from '@/lib/profile-queries';
 
 export type CallType = 'audio' | 'video';
 export type CallStatus = 'idle' | 'calling' | 'ringing' | 'connecting' | 'active' | 'ended';
@@ -286,12 +285,10 @@ export const useAppCall = (
       return;
     }
 
-    const [{ data: selfRow }, targetProfile] = await Promise.all([
-      supabase.from('profiles').select('preferred_language, primary_language, language').eq('user_id', currentUserId).maybeSingle(),
-      fetchPublicProfile(targetUserId),
+    const [selfLang, targetLang] = await Promise.all([
+      fetchCallLanguage(currentUserId),
+      fetchCallLanguage(targetUserId),
     ]);
-    const selfLang = resolveProfileLanguage(selfRow);
-    const targetLang = resolveProfileLanguage(targetProfile);
     if (!canCallEachOther(selfLang, targetLang)) {
       toast({ title: 'Calls not available', description: CALL_LANGUAGE_UNAVAILABLE, variant: 'destructive' });
       return;
@@ -424,13 +421,13 @@ export const useAppCall = (
     callerName: string,
     callerPhoto: string | null
   ) => {
-    const [{ data: selfRow }, callerProfile] = currentUserId
+    const [selfLang, callerLang] = currentUserId
       ? await Promise.all([
-          supabase.from('profiles').select('preferred_language, primary_language, language').eq('user_id', currentUserId).maybeSingle(),
-          fetchPublicProfile(callerUserId),
+          fetchCallLanguage(currentUserId),
+          fetchCallLanguage(callerUserId),
         ])
-      : [{ data: null }, null];
-    if (!canCallEachOther(resolveProfileLanguage(selfRow), resolveProfileLanguage(callerProfile))) {
+      : ["", ""];
+    if (!canCallEachOther(selfLang, callerLang)) {
       toast({ title: 'Calls not available', description: CALL_LANGUAGE_UNAVAILABLE, variant: 'destructive' });
       await supabase.from('video_call_sessions')
         .update({ status: 'declined', ended_at: new Date().toISOString() })

@@ -90,7 +90,7 @@ import { isVisibilityStatusChange } from "@/lib/presence";
 import { CallHistoryTab } from "@/components/CallHistoryTab";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ScrollingAnnouncementsBar } from "@/components/ScrollingAnnouncementsBar";
-import { canCallEachOther, isIndianCallLanguage } from "@/lib/call-languages";
+import { canCallEachOther, isIndianCallLanguage, pickCallLanguage } from "@/lib/call-languages";
 // TransactionStatementTab removed — billing system removed
 interface Notification {
   id: string;
@@ -784,10 +784,11 @@ const DashboardScreen = () => {
       const userLanguages = userLangsResult.data;
 
       // Use main profiles table (single source of truth)
-      const motherTongue = mainProfile?.preferred_language ||
-                          mainProfile?.primary_language ||
-                          userLanguages?.[0]?.language_name ||
-                          "English";
+      const motherTongue = pickCallLanguage(
+        mainProfile?.primary_language,
+        userLanguages?.[0]?.language_name,
+        mainProfile?.preferred_language,
+      ) || "English";
       const languageCode = userLanguages?.[0]?.language_code || "eng_Latn";
       setUserLanguage(motherTongue);
       setUserLanguageCode(languageCode);
@@ -1491,12 +1492,12 @@ const DashboardScreen = () => {
                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${woman.user_id}`); }}>
                               <Eye className="w-3.5 h-3.5 text-primary" />
                             </Button>
-                            {settings.audioCallEnabled !== false && userCountry === "IN" && (woman.country === 'IN' || woman.country?.toLowerCase().includes('india')) && canCallEachOther(userLanguage, woman.primary_language) && (
+                            {settings.audioCallEnabled !== false && canCallEachOther(userLanguage, woman.primary_language) && (
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, 'audio'); }}>
                                 <Phone className="w-3.5 h-3.5 text-primary" />
                               </Button>
                             )}
-                            {settings.videoCallEnabled !== false && userCountry === "IN" && (woman.country === 'IN' || woman.country?.toLowerCase().includes('india')) && canCallEachOther(userLanguage, woman.primary_language) && (
+                            {settings.videoCallEnabled !== false && canCallEachOther(userLanguage, woman.primary_language) && (
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, 'video'); }}>
                                 <Video className="w-3.5 h-3.5 text-primary" />
                               </Button>

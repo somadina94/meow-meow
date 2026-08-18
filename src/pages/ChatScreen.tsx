@@ -110,7 +110,7 @@ import { useChatPresence, type PartnerPresenceState } from "@/hooks/useChatPrese
 import { PartnerStatusLine } from "@/components/chat/PartnerStatusLine";
 import { extractVoiceUrl, isTranslatableChatText, normalizeChatAttachmentUrl, storagePathFromAttachmentUrl } from "@/lib/chat-attachments";
 import { translateForViewer, isEnglishLanguage, languagesMatch } from "@/lib/translation-service";
-import { canCallEachOther } from "@/lib/call-languages";
+import { canCallEachOther, pickCallLanguage } from "@/lib/call-languages";
 
 // MAX_PARALLEL_CHATS is now loaded dynamically from app_settings
 // Default fallback only used if database is unavailable
@@ -1041,10 +1041,11 @@ const ChatScreen = () => {
         .eq("user_id", user.id)
         .limit(1);
       
-      const motherTongue = currentProfile?.preferred_language ||
-                          currentProfile?.primary_language ||
-                          userLanguages?.[0]?.language_name ||
-                          "English";
+      const motherTongue = pickCallLanguage(
+        currentProfile?.primary_language,
+        userLanguages?.[0]?.language_name,
+        currentProfile?.preferred_language,
+      ) || "English";
       
       setCurrentUserLanguage(motherTongue);
       const userGender = currentProfile?.gender === "female" || currentProfile?.gender === "Female" ? "female" : "male";
@@ -1155,10 +1156,11 @@ const ChatScreen = () => {
 
       // Determine partner info from profile
       if (partnerProfile) {
-        const partnerMotherTongue = partnerProfile.preferred_language ||
-                              partnerProfile.primary_language ||
-                              partnerLanguages?.[0]?.language_name ||
-                              "English";
+        const partnerMotherTongue = pickCallLanguage(
+          partnerProfile.primary_language,
+          partnerLanguages?.[0]?.language_name,
+          partnerProfile.preferred_language,
+        ) || "English";
         const partnerName = partnerProfile.full_name || "Anonymous";
         const partnerAvatar = partnerProfile.photo_url || "";
         const isPartnerOnline = partnerStatus?.is_online || false;

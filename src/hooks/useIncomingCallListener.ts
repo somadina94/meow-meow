@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { canCallEachOther, resolveProfileLanguage } from '@/lib/call-languages';
-import { fetchPublicProfile } from '@/lib/profile-queries';
+import { canCallEachOther, fetchCallLanguage } from '@/lib/call-languages';
 
 export interface IncomingCallEvent {
   callId: string;
@@ -31,8 +30,7 @@ export const useIncomingCallListener = (
         const row = payload.new as any;
         if (row.status !== 'ringing') return;
 
-        const callerProfile = await fetchPublicProfile(row.man_user_id);
-        const callerLang = resolveProfileLanguage(callerProfile);
+        const callerLang = await fetchCallLanguage(row.man_user_id);
         if (!canCallEachOther(viewerLanguage, callerLang)) return;
 
         // Fetch caller profile from male_profiles
