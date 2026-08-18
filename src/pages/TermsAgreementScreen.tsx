@@ -1073,13 +1073,16 @@ const TermsAgreementScreen = () => {
         }
       }
 
-      // Create wallet for user (unified wallets table)
-      await supabase.from("wallets").upsert({
-        user_id: user.id,
-        balance: 0,
-        currency: "INR",
-        gender: gender.toLowerCase() === "female" ? "women" : "men",
-      }, { onConflict: "user_id" });
+      // Wallet rows are created server-side (handle_new_user / ensure_canonical_wallet).
+      // Do not upsert public.wallets from the browser — RLS returns 403.
+      const walletGender = gender.toLowerCase() === "female" ? "female" : "male";
+      const { error: walletError } = await supabase.rpc("ensure_canonical_wallet", {
+        p_user_id: user.id,
+        p_gender: walletGender,
+      });
+      if (walletError) {
+        console.warn("[Registration] Wallet ensure skipped:", walletError.message);
+      }
 
       // Save language preferences from LanguagePreferencesScreen to user_languages table
       const savedLanguagePrefs = sessionStorage.getItem("userLanguagePreferences");
