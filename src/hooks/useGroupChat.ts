@@ -232,7 +232,7 @@ export async function gcAnnounce(
 ) {
   const body = kind === "join" ? `👋 ${name} joined the room` : `👋 ${name} left the room`;
   try {
-    await supabase.from("group_chat_messages").insert({
+    const { error } = await supabase.from("group_chat_messages").insert({
       session_id: sessionId,
       room_id: roomId,
       sender_id: userId,
@@ -243,5 +243,6 @@ export async function gcAnnounce(
       transliteration: body,
       english_translation: body,
     } as any);
+    if (error) console.warn("[group-chat] announce skipped:", error.message);
   } catch { /* non-fatal */ }
 }

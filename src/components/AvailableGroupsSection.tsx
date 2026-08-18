@@ -1,5 +1,5 @@
 import { classifyError } from "@/lib/errors";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,9 +9,8 @@ import { cn } from '@/lib/utils';
 import { getFlowerImage } from '@/assets/flowers';
 import { PrivateGroupCallWindow } from './PrivateGroupCallWindow';
 import {
-  canJoinGroupCall,
   MAX_GROUP_CALL_PARTICIPANTS,
-  GROUP_CALL_LANGUAGE_UNAVAILABLE,
+  normalizeCallLanguage,
 } from '@/lib/call-languages';
 
 interface PrivateGroup {
@@ -87,7 +86,7 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [currentUserId, userLanguage]);
+  }, [currentUserId]);
 
   const fetchRows = async () => {
     try {
@@ -130,7 +129,6 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
           } as LiveHostRow;
         })
         .filter((x): x is LiveHostRow => x !== null)
-        .filter((x) => canJoinGroupCall(userLanguage, x.host_language))
         .sort((a, b) => a.group.name.localeCompare(b.group.name));
 
       setRows(built);
@@ -160,10 +158,6 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
     const minBalance = RATE_PER_MINUTE * MIN_BALANCE_MINUTES;
     if (walletBalance < minBalance) {
       toast.error(`Insufficient balance. You need at least ₹${minBalance} (${MIN_BALANCE_MINUTES} minutes) to join.`);
-      return;
-    }
-    if (!canJoinGroupCall(userLanguage, row.host_language)) {
-      toast.error(GROUP_CALL_LANGUAGE_UNAVAILABLE);
       return;
     }
     if (row.participant_count >= MAX_GROUP_CALL_PARTICIPANTS) {
@@ -221,10 +215,19 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
     fetchRows();
   };
 
-  if (isLoading) return <div className="animate-pulse h-32 bg-muted/30 rounded-lg" />;
-
   const minBalance = RATE_PER_MINUTE * MIN_BALANCE_MINUTES;
   const hasEnoughBalance = walletBalance >= minBalance;
+  const displayedRows = useMemo(() => {
+    const mine = normalizeCallLanguage(userLanguage);
+    return [...rows].sort((a, b) => {
+      const aMatch = mine && normalizeCallLanguage(a.host_language) === mine ? 0 : 1;
+      const bMatch = mine && normalizeCallLanguage(b.host_language) === mine ? 0 : 1;
+      if (aMatch !== bMatch) return aMatch - bMatch;
+      return a.group.name.localeCompare(b.group.name);
+    });
+  }, [rows, userLanguage]);
+
+  if (isLoading) return <div className="animate-pulse h-32 bg-muted/30 rounded-lg" />;
 
   return (
     <div className="space-y-3">
@@ -266,11 +269,12 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
       {/* One row per live host */}
       {rows.length > 0 && (
         <div className="divide-y divide-border/50 bg-card rounded-xl overflow-hidden border border-border/60">
-          {rows.map((row) => {
+          {displayedRows.map((row) => {
             const isFull = row.participant_count >= MAX_GROUP_CALL_PARTICIPANTS;
             const key = `${row.group.id}:${row.host_id}`;
             const isJoining = joiningKey === key;
-            const canJoinCall = canJoinGroupCall(userLanguage, row.host_language);
+            const sameLanguage = !!normalizeCallLanguage(userLanguage)
+              && normalizeCallLanguage(row.host_language) === normalizeCallLanguage(userLanguage);
 
             return (
               <div
@@ -302,7 +306,13 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
                       LIVE
                     </Badge>
                     {row.host_language && (
-                      <Badge variant="outline" className="text-[9px] h-4 px-1.5 shrink-0 gap-0.5">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[9px] h-4 px-1.5 shrink-0 gap-0.5",
+                          sameLanguage && "border-accent text-accent"
+                        )}
+                      >
                         <Globe className="h-2 w-2" /> {row.host_language}
                       </Badge>
                     )}
@@ -320,9 +330,8 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
                   </div>
                 </div>
 
-                {/* Join button — hidden when this language pair cannot call */}
+                {/* Join — no language restriction; all men see every live host */}
                 <div className="shrink-0">
-                  {canJoinCall ? (
                   <Button
                     size="sm"
                     className={cn(
@@ -337,7 +346,6 @@ export function AvailableGroupsSection({ currentUserId, userName, userPhoto, use
                     {isJoining ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
                     {isFull ? 'Full' : !hasEnoughBalance ? `₹${minBalance}+` : isJoining ? '...' : 'Join'}
                   </Button>
-                  ) : null}
                 </div>
               </div>
             );

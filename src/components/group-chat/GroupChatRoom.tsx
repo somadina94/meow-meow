@@ -3,11 +3,11 @@
  *  - LEFT: chat messages (sender photo + name)
  *  - RIGHT: participants panel (host + members) with photo + name
  *  - Composer: text, photo, camera, file, voice
- *  - Allowed languages: 22 Indian Official + English ONLY
+ *  - Profile language is not a send or join gate
  *  - On send: stores original body
  *  - On read: viewer sees raw native text
  */
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft, Send, Pin, X, Radio, Image as ImageIcon, Camera, Paperclip,
   Mic, StopCircle, Users, Crown,
@@ -23,7 +23,6 @@ import {
 } from "@/hooks/useGroupChat";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { resolveIndianLanguage, isAllowedGroupChatLanguage } from "@/data/indianOfficialLanguages";
 
 interface Props {
   sessionId: string;
@@ -81,10 +80,7 @@ export const GroupChatRoom: React.FC<Props> = ({
   const isMan = viewerGender === "male";
   const { messages, participants } = useGroupChatRoom(sessionId, hostId);
 
-  const viewerLang = useMemo(() => {
-    const r = resolveIndianLanguage(viewerLanguage);
-    return r ?? resolveIndianLanguage("English")!;
-  }, [viewerLanguage]);
+  const viewerLangName = (viewerLanguage || "").trim() || "English";
 
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -121,12 +117,27 @@ export const GroupChatRoom: React.FC<Props> = ({
     return () => { cancelled = true; };
   }, [hostId]);
 
+  const closedRef = useRef(false);
+  const closeRoom = (reason?: string) => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    if (reason) toast({ title: "Room closed", description: reason });
+    onClose();
+  };
+
   useEffect(() => {
     if (!sessionId || !roomId || isHost) return;
     const closeIfEnded = (ended: boolean) => {
       if (!ended) return;
-      toast({ title: "Room closed", description: "Host ended the live session." });
-      onClose();
+      closeRoom("Host ended the live session.");
+    };
+    const pollEnded = async () => {
+      const [{ data: session }, { data: room }] = await Promise.all([
+        supabase.from("group_chat_sessions").select("ended_at").eq("id", sessionId).maybeSingle(),
+        supabase.from("group_chat_rooms").select("status, current_session_id").eq("id", roomId).maybeSingle(),
+      ]);
+      if (session?.ended_at) { closeIfEnded(true); return; }
+      if (room && (room.status !== "live" || room.current_session_id !== sessionId)) closeIfEnded(true);
     };
     const ch = supabase
       .channel(`gc_room_end:${roomId}:${Math.random().toString(36).slice(2, 8)}`)
@@ -140,7 +151,12 @@ export const GroupChatRoom: React.FC<Props> = ({
           closeIfEnded(row.status !== "live" || row.current_session_id !== sessionId);
         })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    const poll = window.setInterval(() => { void pollEnded(); }, 4000);
+    void pollEnded();
+    return () => {
+      window.clearInterval(poll);
+      supabase.removeChannel(ch);
+    };
   }, [sessionId, roomId, isHost, onClose]);
 
   useGroupChatBilling({
@@ -152,25 +168,30 @@ export const GroupChatRoom: React.FC<Props> = ({
   });
 
   async function insertMessage(payload: Partial<GroupChatMessage>) {
+    if (closedRef.current) return;
     const { error } = await supabase.from("group_chat_messages").insert({
       session_id: sessionId,
       room_id: roomId,
       sender_id: currentUserId,
       sender_name: viewerName,
       sender_gender: viewerGender,
-      original_lang: viewerLang.name,
+      original_lang: viewerLangName,
       ...payload,
     } as any);
-    if (error) toast({ title: "Send failed", description: error.message, variant: "destructive" });
+    if (!error) return;
+    const code = String((error as { code?: string }).code || "");
+    const msg = (error.message || "").toLowerCase();
+    const denied = code === "42501" || code === "PGRST301" || /permission|row-level|rls|forbidden|not allowed/i.test(msg);
+    if (denied) {
+      closeRoom("This room is no longer live.");
+      return;
+    }
+    toast({ title: "Send failed", description: error.message, variant: "destructive" });
   }
 
   const sendText = async () => {
     const text = draft.trim();
     if (!text || sending) return;
-    if (!isAllowedGroupChatLanguage(viewerLang.code)) {
-      toast({ title: "Language not supported", description: "Only 22 Indian languages + English allowed.", variant: "destructive" });
-      return;
-    }
     setSending(true);
     try {
       await insertMessage({ body: text });
@@ -236,17 +257,20 @@ export const GroupChatRoom: React.FC<Props> = ({
 
   const handleLeave = async () => {
     if (isHost) {
+      // Announce while still host of a live session — insert after end_live is RLS 403.
+      await gcAnnounce(sessionId, roomId, currentUserId, viewerName, viewerGender, "leave");
       const res = await gcEndLive(sessionId);
       if (!res.success) {
         toast({ title: "Could not end room", description: res.error, variant: "destructive" });
         return;
       }
-      await gcAnnounce(sessionId, roomId, currentUserId, viewerName, viewerGender, "leave");
+      closedRef.current = true;
       onClose();
       return;
     }
     await gcAnnounce(sessionId, roomId, currentUserId, viewerName, viewerGender, "leave");
     await gcLeave(sessionId);
+    closedRef.current = true;
     onClose();
   };
 

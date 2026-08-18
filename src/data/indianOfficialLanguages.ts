@@ -1,6 +1,6 @@
 /**
  * The 22 official languages of India (8th Schedule) + English.
- * Group Chat is restricted to these languages only.
+ * Group Chat is not language-gated. This list is used for display/normalization only.
  */
 export interface IndianOfficialLang {
   code: string;

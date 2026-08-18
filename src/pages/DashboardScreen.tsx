@@ -90,7 +90,7 @@ import { isVisibilityStatusChange } from "@/lib/presence";
 import { CallHistoryTab } from "@/components/CallHistoryTab";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ScrollingAnnouncementsBar } from "@/components/ScrollingAnnouncementsBar";
-import { canCallEachOther, isGroupCallLanguage, pickCallLanguage } from "@/lib/call-languages";
+import { canCallEachOther, pickCallLanguage } from "@/lib/call-languages";
 // TransactionStatementTab removed — billing system removed
 interface Notification {
   id: string;
@@ -905,12 +905,6 @@ const DashboardScreen = () => {
     userLanguageRef.current = userLanguage;
   }, [userLanguage]);
 
-  useEffect(() => {
-    if (activeTab === "groups" && !isGroupCallLanguage(userLanguage)) {
-      setActiveTab("online");
-    }
-  }, [activeTab, userLanguage]);
-
   function throttledFetchOnlineWomen() {
     const now = Date.now();
     const lang = userLanguageRef.current;
@@ -1385,7 +1379,7 @@ const DashboardScreen = () => {
 
   const onlineCount = sameLanguageWomen.length + indianTranslatedWomen.length;
   const totalUnreadCount = activeChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-  const showCallGroups = settings.privateGroupsEnabled !== false && isGroupCallLanguage(userLanguage);
+  const showCallGroups = settings.privateGroupsEnabled !== false;
   const menTabs = getMenTabs(onlineCount || undefined, totalUnreadCount || activeChatCount || undefined, matchedWomen.length || undefined, !!settings.statementsTabVisible, settings.chatEnabled !== false, showCallGroups);
 
   const renderOnlineUsersTab = () => (

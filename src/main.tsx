@@ -42,12 +42,22 @@ async function recoverFromStaleBundle() {
   }
 }
 
+function isRealtimeSerializerNoise(message: string, stack = ""): boolean {
+  // Phoenix/Supabase Realtime decode: TypeError: s is not iterable inside
+  // Serializer.decode / Socket.onConnMessage. A bad WS frame, not an app crash.
+  if (!/is not iterable/i.test(message)) return false;
+  return /onConnMessage|\.decode\b|realtime|phoenix|serializer/i.test(stack);
+}
+
 function isIgnorableWindowError(event: ErrorEvent): boolean {
   // Resource load failures (img/script/video) and cross-origin "Script error."
   // set event.error to null. Those are not app crashes.
   if (event.error == null) return true;
   const msg = String(event.message || event.error?.message || "");
-  return /resizeobserver loop|script error\.?$/i.test(msg);
+  const stack = String((event.error as Error | undefined)?.stack || "");
+  if (/resizeobserver loop|script error\.?$/i.test(msg)) return true;
+  if (isRealtimeSerializerNoise(msg, stack)) return true;
+  return false;
 }
 
 // Global error handler — catches anything that slips through React ErrorBoundary
@@ -62,6 +72,8 @@ window.addEventListener("error", (event) => {
 window.addEventListener("unhandledrejection", (event) => {
   if (event.reason == null) return;
   const msg = event.reason instanceof Error ? event.reason.message : String(event.reason || "");
+  const stack = event.reason instanceof Error ? event.reason.stack || "" : "";
+  if (isRealtimeSerializerNoise(msg, stack)) return;
   if (isStaleBundleError(msg)) { void recoverFromStaleBundle(); return; }
   console.error("[FATAL] Unhandled rejection:", event.reason);
   showFatalError(msg || "Startup failed");
