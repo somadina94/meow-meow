@@ -467,19 +467,9 @@ export const useAppCall = (
     callerName: string,
     callerPhoto: string | null
   ) => {
-    const [selfLang, callerLang] = currentUserId
-      ? await Promise.all([
-          fetchCallLanguage(currentUserId),
-          fetchCallLanguage(callerUserId),
-        ])
-      : ["", ""];
-    if (!canCallEachOther(selfLang, callerLang)) {
-      toast({ title: 'Calls not available', description: CALL_LANGUAGE_UNAVAILABLE, variant: 'destructive' });
-      await supabase.from('video_call_sessions')
-        .update({ status: 'declined', ended_at: new Date().toISOString() })
-        .eq('call_id', callId);
-      return;
-    }
+    // Language was already validated by the DB trigger when the session was
+    // inserted. Do NOT re-check here — stale gender-profile rows or RLS
+    // cache caused false negatives that silently killed the call.
 
     let stream: MediaStream;
     try {
