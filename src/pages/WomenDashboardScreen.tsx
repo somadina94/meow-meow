@@ -774,7 +774,7 @@ const WomenDashboardScreen = () => {
         last_seen: string;
         active_chat_count: number;
       }) => {
-        const manLanguage = man.mother_tongue || man.primary_language || man.preferred_language || "Unknown";
+        const manLanguage = man.primary_language || man.mother_tongue || man.preferred_language || "Unknown";
         const isSameLanguage = effectiveWomanLanguage.toLowerCase() === manLanguage.toLowerCase();
         const walletBalance = Number(man.wallet_balance) || 0;
         // Premium users have wallet balance > 0 (recharged), regular users have 0

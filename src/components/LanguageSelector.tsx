@@ -188,32 +188,13 @@ export const LanguageSelector = ({
           .eq("user_id", user.id);
       }
 
-      const { data: existingLang } = await supabase
-        .from("user_languages")
-        .select("id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (existingLang) {
-        const { error: langError } = await supabase
-          .from("user_languages")
-          .update({
-            language_name: languageName,
-            language_code: languageCode,
-          })
-          .eq("id", existingLang.id);
-        if (langError) throw langError;
-      } else {
-        const { error: langError } = await supabase
-          .from("user_languages")
-          .insert({
-            user_id: user.id,
-            language_name: languageName,
-            language_code: languageCode,
-          });
-        if (langError) throw langError;
-      }
+      await supabase.from("user_languages").delete().eq("user_id", user.id);
+      const { error: langError } = await supabase.from("user_languages").insert({
+        user_id: user.id,
+        language_name: languageName,
+        language_code: languageCode,
+      });
+      if (langError) throw langError;
 
       onLanguageChange(languageName, languageCode);
       setIsOpen(false);

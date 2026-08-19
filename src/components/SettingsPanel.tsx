@@ -228,23 +228,20 @@ export const SettingsPanel = ({ compact = false }: SettingsPanelProps) => {
         const gender = profileData?.gender?.toLowerCase();
 
         // Sync to all relevant tables
-        await Promise.allSettled([
-          supabase
-            .from("profiles")
-            .update({
-              primary_language: settings.language,
-              preferred_language: settings.language,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("user_id", user.id),
-          supabase
-            .from("user_languages")
-            .upsert({
-              user_id: user.id,
-              language_name: settings.language,
-              language_code: selectedLanguageCode,
-            }, { onConflict: "user_id,language_code" }),
-        ]);
+        await supabase
+          .from("profiles")
+          .update({
+            primary_language: settings.language,
+            preferred_language: settings.language,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", user.id);
+        await supabase.from("user_languages").delete().eq("user_id", user.id);
+        await supabase.from("user_languages").insert({
+          user_id: user.id,
+          language_name: settings.language,
+          language_code: selectedLanguageCode,
+        });
 
         // Sync to gender-specific profile table so dashboard picks up the change
         if (gender === "male") {
