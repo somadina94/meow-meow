@@ -269,13 +269,34 @@ export const CallHistoryTab: React.FC<CallHistoryTabProps> = ({
       // Map group chat participation — one row per session joined
       groupChats.forEach((row: any) => {
         if (!row?.id) return;
-        const secs = asNum(row.total_seconds);
-        const mins = billedMinutes(secs / 60);
-        const rate = isMale ? RATES.groupchat.man : RATES.groupchat.woman;
-        const billed = asNum(row.total_billed) || mins * rate;
         const sess = asRecord(row.group_chat_sessions);
         const room = asRecord(sess?.group_chat_rooms);
         const roomName = asText(room?.name, "Group Chat");
+        const isHostRow = asText(sess?.host_id, "") === currentUserId;
+        const secs = asNum(row.total_seconds);
+        const mins = billedMinutes(secs / 60);
+        const rate = isMale ? RATES.groupchat.man : RATES.groupchat.woman;
+        // Host with no men billed: show ₹0, not live-duration × rate.
+        const billed = isHostRow && !isMale
+          ? asNum(row.total_billed)
+          : (asNum(row.total_billed) || mins * rate);
+        if (isHostRow && !isMale && billed <= 0 && mins <= 0) {
+          items.push({
+            id: String(row.id),
+            type: "groupchat",
+            partnerId: "",
+            partnerName: roomName,
+            partnerAvatar: "",
+            status: row.left_at ? "ended" : sess?.ended_at ? "ended" : "active",
+            startedAt: asText(row.joined_at || sess?.started_at, ""),
+            endedAt: row.left_at || sess?.ended_at || undefined,
+            totalMinutes: 0,
+            totalAmount: 0,
+            ratePerMinute: rate,
+            groupName: roomName,
+          });
+          return;
+        }
         items.push({
           id: String(row.id),
           type: "groupchat",

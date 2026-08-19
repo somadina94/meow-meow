@@ -168,7 +168,7 @@ export function useGroupChatRoom(sessionId: string | null, hostId?: string | nul
 }
 
 
-/** Per-minute billing tick for men in a group chat room. */
+/** Per-minute billing tick for men in a group chat room. Stops when the man leaves or no men remain. */
 export function useGroupChatBilling(params: {
   sessionId: string | null;
   manId: string | null;
@@ -178,17 +178,35 @@ export function useGroupChatBilling(params: {
   const ref = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (!params.enabled || !params.sessionId || !params.manId) return;
+    const stop = () => {
+      if (ref.current) {
+        clearInterval(ref.current);
+        ref.current = null;
+      }
+    };
     const tick = async () => {
+      const [{ data: session }, { data: part }] = await Promise.all([
+        supabase.from("group_chat_sessions").select("ended_at, host_id").eq("id", params.sessionId!).maybeSingle(),
+        supabase.from("group_chat_participants").select("left_at").eq("session_id", params.sessionId!).eq("user_id", params.manId!).maybeSingle(),
+      ]);
+      if (!session || session.ended_at || session.host_id === params.manId || !part || part.left_at) {
+        stop();
+        return;
+      }
       const { data } = await supabase.rpc("bill_group_chat_minute", {
         p_session_id: params.sessionId!,
         p_man_id: params.manId!,
       });
-      const r = data as { success: boolean; insufficient?: boolean } | null;
+      const r = data as { success?: boolean; insufficient?: boolean; skipped?: string } | null;
+      if (r?.skipped === "no_active_men" || r?.skipped === "man_left" || r?.skipped === "not_live" || r?.skipped === "host_not_billable") {
+        stop();
+        return;
+      }
       if (r && r.success === false && r.insufficient) params.onInsufficient();
     };
     // First tick after 60s so men get the first minute free of immediate debit
     ref.current = setInterval(tick, 60_000);
-    return () => { if (ref.current) clearInterval(ref.current); };
+    return () => stop();
   }, [params.sessionId, params.manId, params.enabled]);
 }
 

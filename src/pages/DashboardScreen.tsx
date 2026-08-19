@@ -218,6 +218,7 @@ const DashboardScreen = () => {
     partnerIsOnline: boolean;
     partnerStatus: string;
     partnerActiveChatCount: number;
+    partnerLanguage: string | null;
   }>>([]);
   const [loadingChats, setLoadingChats] = useState(false);
   // GESS ID search across Online / Chats / Matches tabs
@@ -591,7 +592,43 @@ const DashboardScreen = () => {
         partnerIsOnline: Boolean(r.partner_is_online),
         partnerStatus: (r.partner_status as string) || 'offline',
         partnerActiveChatCount: Number(r.partner_active_chat_count) || 0,
+        partnerLanguage: (r.partner_language as string) || null,
       }));
+
+      const partnerIds = [...new Set(chats.map(c => c.partnerId).filter(Boolean))];
+      if (partnerIds.length > 0) {
+        const [{ data: profiles }, { data: langs }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("user_id, primary_language, language, preferred_language")
+            .in("user_id", partnerIds),
+          supabase
+            .from("user_languages")
+            .select("user_id, language_name")
+            .in("user_id", partnerIds),
+        ]);
+        const langByUser = new Map<string, string[]>();
+        for (const l of (langs || []) as { user_id: string; language_name: string | null }[]) {
+          if (!l.language_name) continue;
+          const arr = langByUser.get(l.user_id) || [];
+          arr.push(l.language_name);
+          langByUser.set(l.user_id, arr);
+        }
+        const profileByUser = new Map(
+          ((profiles || []) as { user_id: string; primary_language: string | null; language: string | null; preferred_language: string | null }[])
+            .map(p => [p.user_id, p])
+        );
+        for (const chat of chats) {
+          const p = profileByUser.get(chat.partnerId);
+          chat.partnerLanguage = pickCallLanguage(
+            p?.primary_language,
+            ...(langByUser.get(chat.partnerId) || []),
+            p?.language,
+            p?.preferred_language,
+            chat.partnerLanguage,
+          ) || chat.partnerLanguage;
+        }
+      }
       setActiveChats(chats);
       chatsFetchedRef.current = true;
     } catch (error) {
@@ -1493,16 +1530,6 @@ const DashboardScreen = () => {
                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${woman.user_id}`); }}>
                               <Eye className="w-3.5 h-3.5 text-primary" />
                             </Button>
-                            {settings.audioCallEnabled !== false && canCallEachOther(userLanguage, woman.primary_language) && (
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, 'audio'); }}>
-                                <Phone className="w-3.5 h-3.5 text-primary" />
-                              </Button>
-                            )}
-                            {settings.videoCallEnabled !== false && canCallEachOther(userLanguage, woman.primary_language) && (
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, 'video'); }}>
-                                <Video className="w-3.5 h-3.5 text-primary" />
-                              </Button>
-                            )}
                           </div>
                         }
                       />
@@ -1654,6 +1681,32 @@ const DashboardScreen = () => {
                 )}
               </div>
             </div>
+            {canCallEachOther(userLanguage, chat.partnerLanguage) && (
+              <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                {settings.audioCallEnabled !== false && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => initiateCall(chat.partnerId, chat.partnerName, chat.partnerPhoto, 'audio')}
+                    aria-label="Audio call"
+                  >
+                    <Phone className="w-4 h-4 text-primary" />
+                  </Button>
+                )}
+                {settings.videoCallEnabled !== false && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => initiateCall(chat.partnerId, chat.partnerName, chat.partnerPhoto, 'video')}
+                    aria-label="Video call"
+                  >
+                    <Video className="w-4 h-4 text-primary" />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         ));
       })()}
