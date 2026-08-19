@@ -21,16 +21,29 @@ export const MAX_GROUP_CALL_PARTICIPANTS = 15;
 const EXTRA_ALIASES: Record<string, string> = {
   bangla: "bengali",
   bn: "bengali",
+  "bn-in": "bengali",
+  "bn_in": "bengali",
   বাংলা: "bengali",
   "bengali (india)": "bengali",
   hi: "hindi",
+  "hi-in": "hindi",
+  "hi_in": "hindi",
   हिन्दी: "hindi",
   हिंदी: "hindi",
   mr: "marathi",
+  "mr-in": "marathi",
+  "mr_in": "marathi",
   मराठी: "marathi",
   te: "telugu",
+  "te-in": "telugu",
+  "te_in": "telugu",
+  telegu: "telugu",
+  telgu: "telugu",
+  "telugu (india)": "telugu",
   తెలుగు: "telugu",
   ta: "tamil",
+  "ta-in": "tamil",
+  "ta_in": "tamil",
   தமிழ்: "tamil",
   oriya: "odia",
   or: "odia",
@@ -55,7 +68,10 @@ const GROUP_CALL_LANG_SET = new Set(GROUP_CALL_LANGUAGES.map((n) => n.toLowerCas
 export function normalizeCallLanguage(lang?: string | null): string {
   const raw = (lang || "").trim().toLowerCase();
   if (!raw) return "";
-  return CALL_LANGUAGE_ALIASES[raw] || raw;
+  if (CALL_LANGUAGE_ALIASES[raw]) return CALL_LANGUAGE_ALIASES[raw];
+  const base = raw.split(/[-_]/)[0];
+  if (base && CALL_LANGUAGE_ALIASES[base]) return CALL_LANGUAGE_ALIASES[base];
+  return raw;
 }
 
 export function isIndianCallLanguage(lang?: string | null): boolean {

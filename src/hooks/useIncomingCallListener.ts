@@ -30,8 +30,11 @@ export const useIncomingCallListener = (
         const row = payload.new as any;
         if (row.status !== 'ringing') return;
 
-        const callerLang = await fetchCallLanguage(row.man_user_id);
-        if (!canCallEachOther(viewerLanguage, callerLang)) return;
+        const [selfLang, callerLang] = await Promise.all([
+          fetchCallLanguage(currentUserId),
+          fetchCallLanguage(row.man_user_id),
+        ]);
+        if (!canCallEachOther(selfLang, callerLang)) return;
 
         // Fetch caller profile from male_profiles
         const { data: profile } = await supabase

@@ -1064,12 +1064,11 @@ const ChatScreen = () => {
       const { data: userLanguages } = await supabase
         .from("user_languages")
         .select("language_name")
-        .eq("user_id", user.id)
-        .limit(1);
+        .eq("user_id", user.id);
       
       const motherTongue = pickCallLanguage(
         currentProfile?.primary_language,
-        userLanguages?.[0]?.language_name,
+        ...((userLanguages || []) as { language_name?: string | null }[]).map((l) => l.language_name),
         currentProfile?.preferred_language,
       ) || "English";
       
@@ -1178,14 +1177,13 @@ const ChatScreen = () => {
       const { data: partnerLanguages } = await supabase
         .from("user_languages")
         .select("language_name")
-        .eq("user_id", partnerId)
-        .limit(1);
+        .eq("user_id", partnerId);
 
       // Determine partner info from profile
       if (partnerProfile) {
         const partnerMotherTongue = pickCallLanguage(
           partnerProfile.primary_language,
-          partnerLanguages?.[0]?.language_name,
+          ...((partnerLanguages || []) as { language_name?: string | null }[]).map((l) => l.language_name),
           partnerProfile.preferred_language,
         ) || "English";
         const partnerName = partnerProfile.full_name || "Anonymous";

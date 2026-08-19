@@ -90,7 +90,7 @@ import { isVisibilityStatusChange } from "@/lib/presence";
 import { CallHistoryTab } from "@/components/CallHistoryTab";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ScrollingAnnouncementsBar } from "@/components/ScrollingAnnouncementsBar";
-import { canCallEachOther, pickCallLanguage } from "@/lib/call-languages";
+import { canCallEachOther, isIndianCallLanguage, pickCallLanguage } from "@/lib/call-languages";
 // TransactionStatementTab removed — billing system removed
 interface Notification {
   id: string;
@@ -489,7 +489,13 @@ const DashboardScreen = () => {
         (availabilityRes.data as any[] || []).map(a => [a.user_id, a])
       );
 
-      const languageMap = new Map((userLanguagesRes.data as any[] || []).map(l => [l.user_id, l.language_name as string]));
+      const languageMap = new Map<string, string>();
+      for (const l of (userLanguagesRes.data as { user_id: string; language_name: string }[] || [])) {
+        const existing = languageMap.get(l.user_id);
+        if (!existing || (!isIndianCallLanguage(existing) && isIndianCallLanguage(l.language_name))) {
+          languageMap.set(l.user_id, l.language_name);
+        }
+      }
 
       const walletMap = new Map<string, number>(
         (walletsRes.data as any[] || []).map((w: any) => [w.user_id, Number(w.balance) || 0])
@@ -498,7 +504,7 @@ const DashboardScreen = () => {
       const womenWithChatCount = onlineWomenList.map(w => {
         const avail = availabilityMap.get(w.user_id);
         const chatCount = avail?.current_chat_count || chatCountMap.get(w.user_id) || 0;
-        const womanLanguage = languageMap.get(w.user_id) || w.primary_language || "Unknown";
+        const womanLanguage = pickCallLanguage(w.primary_language, languageMap.get(w.user_id)) || w.primary_language || "Unknown";
         return {
           ...w,
           primary_language: womanLanguage,
@@ -766,8 +772,7 @@ const DashboardScreen = () => {
         supabase
           .from("user_languages")
           .select("language_name, language_code")
-          .eq("user_id", user.id)
-          .limit(1),
+          .eq("user_id", user.id),
         // Check female_profiles in case user registered as female but no main profile
         supabase
           .from("female_profiles")
@@ -786,10 +791,12 @@ const DashboardScreen = () => {
       // Use main profiles table (single source of truth)
       const motherTongue = pickCallLanguage(
         mainProfile?.primary_language,
-        userLanguages?.[0]?.language_name,
+        ...((userLanguages || []) as { language_name?: string | null }[]).map((l) => l.language_name),
         mainProfile?.preferred_language,
       ) || "English";
-      const languageCode = userLanguages?.[0]?.language_code || "eng_Latn";
+      const languageCode = userLanguages?.find((l: { language_code?: string | null; language_name?: string | null }) =>
+        l.language_name && l.language_name === motherTongue
+      )?.language_code || userLanguages?.[0]?.language_code || "eng_Latn";
       setUserLanguage(motherTongue);
       setUserLanguageCode(languageCode);
 

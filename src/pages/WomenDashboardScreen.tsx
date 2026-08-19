@@ -645,8 +645,7 @@ const WomenDashboardScreen = () => {
       const languagePromise = supabase
         .from("user_languages")
         .select("language_name, language_code")
-        .eq("user_id", user.id)
-        .limit(1);
+        .eq("user_id", user.id);
 
       const profileTimeout = new Promise<{ data: null, error: Error }>((resolve) =>
         setTimeout(() => resolve({ data: null, error: new Error('Profile fetch timeout') }), 5000)
@@ -694,10 +693,12 @@ const WomenDashboardScreen = () => {
 
       const womanLanguage = pickCallLanguage(
         mainProfile?.primary_language,
-        womanLanguages?.[0]?.language_name,
+        ...((womanLanguages || []) as { language_name?: string | null }[]).map((l) => l.language_name),
         mainProfile?.preferred_language,
       ) || "English";
-      const womanLanguageCode = womanLanguages?.[0]?.language_code || "eng_Latn";
+      const womanLanguageCode = womanLanguages?.find((l) => l.language_name === womanLanguage)?.language_code
+        || womanLanguages?.[0]?.language_code
+        || "eng_Latn";
       setCurrentWomanLanguage(womanLanguage);
       setCurrentWomanLanguageCode(womanLanguageCode);
       
