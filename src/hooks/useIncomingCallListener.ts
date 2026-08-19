@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { canCallEachOther, fetchCallLanguage } from '@/lib/call-languages';
 
 export interface IncomingCallEvent {
   callId: string;
@@ -13,7 +12,7 @@ export interface IncomingCallEvent {
 export const useIncomingCallListener = (
   currentUserId: string | null,
   userGender: 'male' | 'female',
-  viewerLanguage?: string | null,
+  _viewerLanguage?: string | null,
 ) => {
   const [incomingCall, setIncomingCall] = useState<IncomingCallEvent | null>(null);
 
@@ -30,13 +29,9 @@ export const useIncomingCallListener = (
         const row = payload.new as any;
         if (row.status !== 'ringing') return;
 
-        const [selfLang, callerLang] = await Promise.all([
-          fetchCallLanguage(currentUserId),
-          fetchCallLanguage(row.man_user_id),
-        ]);
-        if (!canCallEachOther(selfLang, callerLang)) return;
-
-        // Fetch caller profile from male_profiles
+        // DB trigger already enforced same-language. Do not hide the ring
+        // behind a second client-side language fetch (stale male/female_profiles
+        // used to drop Hindi–Hindi calls silently).
         const { data: profile } = await supabase
           .from('male_profiles')
           .select('full_name, photo_url')
@@ -54,7 +49,7 @@ export const useIncomingCallListener = (
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [currentUserId, userGender, viewerLanguage]);
+  }, [currentUserId, userGender]);
 
   const clearIncomingCall = () => setIncomingCall(null);
 

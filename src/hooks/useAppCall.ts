@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAppSettings } from '@/hooks/useAppSettings';
@@ -104,6 +105,20 @@ export const useAppCall = (
         : false,
     });
   };
+
+  const waitUntilSubscribed = (ch: RealtimeChannel, timeoutMs = 8000) =>
+    new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(() => reject(new Error('Call channel subscribe timed out')), timeoutMs);
+      ch.subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          window.clearTimeout(timer);
+          resolve();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          window.clearTimeout(timer);
+          reject(err || new Error(status));
+        }
+      });
+    });
 
   // Flush queued ICE candidates once remoteDescription is set
   const flushIceCandidateQueue = useCallback(async () => {
@@ -362,27 +377,6 @@ export const useAppCall = (
       localStream: stream, remoteStream: null,
     });
 
-    const { error: insertError } = await supabase.from('video_call_sessions').insert({
-      call_id: callId,
-      man_user_id: currentUserId,
-      woman_user_id: targetUserId,
-      status: 'ringing',
-      call_type: callType,
-      rate_per_minute: rate,
-      started_at: null,
-    } as any);
-    if (insertError) {
-      console.error('[AppCall] session insert failed', insertError);
-      toast({
-        title: 'Call failed',
-        description: insertError.message || CALL_LANGUAGE_UNAVAILABLE,
-        variant: 'destructive',
-      });
-      cleanup();
-      return;
-    }
-
-    // Signalling channel
     const ch = supabase.channel(`call:${callId}`);
     channelRef.current = ch;
 
@@ -424,7 +418,34 @@ export const useAppCall = (
       }
     });
 
-    await ch.subscribe();
+    try {
+      await waitUntilSubscribed(ch);
+    } catch (e) {
+      console.error('[AppCall] signalling subscribe failed', e);
+      toast({ title: 'Call failed', description: 'Could not connect signalling. Try again.', variant: 'destructive' });
+      cleanup();
+      return;
+    }
+
+    const { error: insertError } = await supabase.from('video_call_sessions').insert({
+      call_id: callId,
+      man_user_id: currentUserId,
+      woman_user_id: targetUserId,
+      status: 'ringing',
+      call_type: callType,
+      rate_per_minute: rate,
+      started_at: null,
+    } as any);
+    if (insertError) {
+      console.error('[AppCall] session insert failed', insertError);
+      toast({
+        title: 'Call failed',
+        description: insertError.message || CALL_LANGUAGE_UNAVAILABLE,
+        variant: 'destructive',
+      });
+      cleanup();
+      return;
+    }
 
     // Auto-cancel after 60s
     ringTimerRef.current = setTimeout(async () => {
@@ -514,11 +535,14 @@ export const useAppCall = (
       cleanup();
     });
 
-    // Subscribe first, THEN notify initiator to avoid race
-    await ch.subscribe();
-
-    // Small delay to ensure channel is fully ready before notifying
-    await new Promise(r => setTimeout(r, 300));
+    try {
+      await waitUntilSubscribed(ch);
+    } catch (e) {
+      console.error('[AppCall] accept subscribe failed', e);
+      toast({ title: 'Call failed', description: 'Could not connect signalling. Try again.', variant: 'destructive' });
+      cleanup();
+      return;
+    }
     ch.send({ type: 'broadcast', event: 'call_answered', payload: {} });
   }, [toast, cleanup, createPC, doEndCall, setStatusSync, flushIceCandidateQueue, handleIceCandidate]);
 

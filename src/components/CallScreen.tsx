@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { SendGiftButton } from '@/components/SendGiftButton';
 import { startRingLoop, stopRingLoop } from '@/hooks/useIncomingCalls';
+import { playMedia } from '@/lib/media';
 
 interface CallScreenProps {
   status: CallStatus;
@@ -39,20 +40,24 @@ export const CallScreen = ({
 
   // Attach local stream
   useEffect(() => {
-    if (localVideoRef.current && activeCall?.localStream) {
-      localVideoRef.current.srcObject = activeCall.localStream;
+    const el = localVideoRef.current;
+    if (el && activeCall?.localStream) {
+      el.srcObject = activeCall.localStream;
+      el.muted = true;
+      void playMedia(el);
     }
   }, [activeCall?.localStream]);
 
   // Attach remote stream
   useEffect(() => {
-    if (activeCall?.remoteStream) {
-      if (activeCall.callType === 'video' && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = activeCall.remoteStream;
-      }
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = activeCall.remoteStream;
-      }
+    if (!activeCall?.remoteStream) return;
+    if (activeCall.callType === 'video' && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = activeCall.remoteStream;
+      void playMedia(remoteVideoRef.current);
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = activeCall.remoteStream;
+      void playMedia(remoteAudioRef.current);
     }
   }, [activeCall?.remoteStream, activeCall?.callType]);
 

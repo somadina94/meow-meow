@@ -517,6 +517,19 @@ const ProfileEditDialog = ({ open, onOpenChange, onProfileUpdated }: ProfileEdit
           console.log("[ProfileEditDialog] Successfully updated user_languages");
         }
 
+        const gender = (profile.gender || "").toLowerCase();
+        if (gender === "male") {
+          await supabase
+            .from("male_profiles")
+            .update({ primary_language: userLanguage.language_name, preferred_language: userLanguage.language_name })
+            .eq("user_id", user.id);
+        } else if (gender === "female") {
+          await supabase
+            .from("female_profiles")
+            .update({ primary_language: userLanguage.language_name, preferred_language: userLanguage.language_name })
+            .eq("user_id", user.id);
+        }
+
         // Update original language to reflect saved state
         setOriginalLanguage({
           language_name: userLanguage.language_name,

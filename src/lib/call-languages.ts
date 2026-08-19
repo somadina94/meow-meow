@@ -131,9 +131,9 @@ export async function fetchCallLanguage(userId: string): Promise<string> {
 
   return pickCallLanguage(
     profile?.primary_language,
+    ...newestLangs,
     female?.primary_language,
     male?.primary_language,
-    ...newestLangs,
     profile?.language,
     profile?.preferred_language,
     female?.preferred_language,
