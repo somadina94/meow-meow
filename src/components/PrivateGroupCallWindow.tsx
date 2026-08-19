@@ -133,6 +133,7 @@ export function PrivateGroupCallWindow({
   // Extension state
   const [canExtendThisMonth, setCanExtendThisMonth] = useState(true);
   const [liveSeconds, setLiveSeconds] = useState(0);
+  const [estimatedEarnings, setEstimatedEarnings] = useState(0);
 
   const hasVideo = group.access_type === 'video' || group.access_type === 'both';
 
@@ -223,12 +224,26 @@ export function PrivateGroupCallWindow({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Live ticker: counts seconds while session is live (used for live billing display)
+  const menCount = participants.filter(p => !p.isOwner).length;
+  const HOST_EARN_PER_MAN_PER_MIN = 1; // matches group_woman_rate
+  const MAN_COST_PER_MIN = 4; // matches group_man_rate
+
+  // Billing ticker only while at least one man is in the room.
+  // Wallet RPCs already skip when activeMen.length === 0; this keeps the host
+  // badge from counting live time / fake earnings while she is alone.
   useEffect(() => {
-    if (!isLive) { setLiveSeconds(0); return; }
-    const t = setInterval(() => setLiveSeconds(s => s + 1), 1000);
+    if (!isLive) {
+      setLiveSeconds(0);
+      setEstimatedEarnings(0);
+      return;
+    }
+    if (menCount === 0) return;
+    const t = setInterval(() => {
+      setLiveSeconds((s) => s + 1);
+      setEstimatedEarnings((e) => e + (HOST_EARN_PER_MAN_PER_MIN * menCount) / 60);
+    }, 1000);
     return () => clearInterval(t);
-  }, [isLive]);
+  }, [isLive, menCount]);
 
   // ─── Add Chat Message ─────────────────────────────────────────
 
@@ -684,13 +699,19 @@ export function PrivateGroupCallWindow({
 
         <div className="flex items-center gap-2">
           {isLive && (() => {
-            const elapsedMinFloat = liveSeconds / 60;
-            const memberCost = elapsedMinFloat * 4;
-            const hostEarnings = elapsedMinFloat * 0.5 * Math.max(0, viewerCount);
+            if (isOwner && menCount === 0) {
+              return (
+                <Badge variant="outline" className="text-white/70 border-white/20 bg-black/40 text-[11px] gap-1">
+                  Not billing
+                  {estimatedEarnings > 0 ? ` · Earned ₹${estimatedEarnings.toFixed(2)}` : ''}
+                </Badge>
+              );
+            }
+            const memberCost = (liveSeconds / 60) * MAN_COST_PER_MIN;
             return (
               <Badge variant="outline" className="text-white/90 border-accent/50 bg-black/40 text-[11px] gap-1">
                 <Circle className="h-2 w-2 fill-accent text-accent animate-pulse" />
-                {isOwner ? `Earned ₹${hostEarnings.toFixed(2)}` : `Spent ₹${memberCost.toFixed(2)}`}
+                {isOwner ? `Earned ₹${estimatedEarnings.toFixed(2)}` : `Spent ₹${memberCost.toFixed(2)}`}
                 {' · '}{formatTime(liveSeconds)}
               </Badge>
             );
