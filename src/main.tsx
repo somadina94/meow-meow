@@ -49,6 +49,11 @@ function isRealtimeSerializerNoise(message: string, stack = ""): boolean {
   return /onConnMessage|\.decode\b|realtime|phoenix|serializer/i.test(stack);
 }
 
+function isPlayAbortNoise(reason: unknown, message: string): boolean {
+  const name = (reason as { name?: string } | null)?.name;
+  return name === "AbortError" || /play\(\) request was interrupted|interrupted by a call to pause/i.test(message);
+}
+
 function isIgnorableWindowError(event: ErrorEvent): boolean {
   // Resource load failures (img/script/video) and cross-origin "Script error."
   // set event.error to null. Those are not app crashes.
@@ -56,6 +61,7 @@ function isIgnorableWindowError(event: ErrorEvent): boolean {
   const msg = String(event.message || event.error?.message || "");
   const stack = String((event.error as Error | undefined)?.stack || "");
   if (/resizeobserver loop|script error\.?$/i.test(msg)) return true;
+  if (isPlayAbortNoise(event.error, msg)) return true;
   if (isRealtimeSerializerNoise(msg, stack)) return true;
   return false;
 }
@@ -73,6 +79,10 @@ window.addEventListener("unhandledrejection", (event) => {
   if (event.reason == null) return;
   const msg = event.reason instanceof Error ? event.reason.message : String(event.reason || "");
   const stack = event.reason instanceof Error ? event.reason.stack || "" : "";
+  if (isPlayAbortNoise(event.reason, msg)) {
+    event.preventDefault();
+    return;
+  }
   if (isRealtimeSerializerNoise(msg, stack)) return;
   if (isStaleBundleError(msg)) { void recoverFromStaleBundle(); return; }
   console.error("[FATAL] Unhandled rejection:", event.reason);

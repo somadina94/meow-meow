@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { classifyError, ERROR_MESSAGES, logError } from "@/lib/errors";
 import { supabase } from "@/integrations/supabase/client";
 import { useFaceVerification } from "@/hooks/useFaceVerification";
+import { playMedia } from "@/lib/media";
 import { Camera, Upload, X, Loader2, ImagePlus, Star, ShieldCheck, AlertCircle, Sparkles, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -601,7 +602,7 @@ const ProfilePhotosSection = ({ userId, expectedGender, onPhotosChange, onGender
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        await playMedia(videoRef.current);
       }
       setShowCamera(true);
     } catch (error) {

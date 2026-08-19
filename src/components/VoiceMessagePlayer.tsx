@@ -45,7 +45,10 @@ export const VoiceMessagePlayer = ({
       audio.pause();
       return;
     }
-    void audio.play().catch(() => setError(true));
+    void audio.play().catch((err) => {
+      if ((err as { name?: string })?.name === "AbortError") return;
+      setError(true);
+    });
   };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {

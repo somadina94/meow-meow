@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ICE_SERVERS } from '@/lib/iceServers';
+import { playMedia } from '@/lib/media';
 import { billMinute, billFinalPartialMinute } from '@/services/billing.service';
 
 /**
@@ -359,7 +360,7 @@ export const useP2PCall = ({
     if (video.srcObject === stream) {
       // Already bound — just make sure it's playing
       if (video.paused) {
-        video.play().catch(() => {});
+        void playMedia(video);
       }
       return;
     }
@@ -369,8 +370,7 @@ export const useP2PCall = ({
       video.play().catch(() => {
         // iOS blocks unmuted autoplay; try muted then unmute after play
         video.muted = true;
-        video.play().then(() => {
-          // Unmute after playback starts (user already interacted to accept call)
+        playMedia(video).then(() => {
           setTimeout(() => { video.muted = false; }, 300);
         }).catch(err => {
           console.warn('[P2P] Video play failed even muted:', err);

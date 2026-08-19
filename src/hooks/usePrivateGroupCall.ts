@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 // useChatPricing removed — billing system removed
 import { toast } from 'sonner';
 import { ICE_SERVERS_SFU } from '@/lib/iceServers';
+import { playMedia } from '@/lib/media';
 import { billGroupCallMinute, billFinalPartialMinute } from '@/services/billing.service';
 
 export const MAX_PARTICIPANTS = 100;
@@ -217,7 +218,7 @@ export function usePrivateGroupCall({
         if (remoteVideoRef.current) {
           console.log('[PrivateGroupCall] Attaching hostStream to video element immediately');
           remoteVideoRef.current.srcObject = remoteStream;
-          remoteVideoRef.current.play().catch(e => console.warn('[PrivateGroupCall] Auto-play failed:', e));
+          void playMedia(remoteVideoRef.current);
         }
       }
     };
