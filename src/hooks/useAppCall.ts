@@ -362,8 +362,7 @@ export const useAppCall = (
       localStream: stream, remoteStream: null,
     });
 
-    // Insert session
-    await supabase.from('video_call_sessions').insert({
+    const { error: insertError } = await supabase.from('video_call_sessions').insert({
       call_id: callId,
       man_user_id: currentUserId,
       woman_user_id: targetUserId,
@@ -372,6 +371,16 @@ export const useAppCall = (
       rate_per_minute: rate,
       started_at: null,
     } as any);
+    if (insertError) {
+      console.error('[AppCall] session insert failed', insertError);
+      toast({
+        title: 'Call failed',
+        description: insertError.message || CALL_LANGUAGE_UNAVAILABLE,
+        variant: 'destructive',
+      });
+      cleanup();
+      return;
+    }
 
     // Signalling channel
     const ch = supabase.channel(`call:${callId}`);

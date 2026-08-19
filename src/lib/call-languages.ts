@@ -109,7 +109,11 @@ export async function fetchCallLanguage(userId: string): Promise<string> {
       .select("preferred_language, primary_language, language")
       .eq("user_id", userId)
       .maybeSingle(),
-    supabase.from("user_languages").select("language_name").eq("user_id", userId),
+    supabase
+      .from("user_languages")
+      .select("language_name, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
     supabase
       .from("female_profiles")
       .select("primary_language, preferred_language")
@@ -122,11 +126,14 @@ export async function fetchCallLanguage(userId: string): Promise<string> {
       .maybeSingle(),
   ]);
 
+  const newestLangs = ((langs || []) as { language_name?: string | null }[])
+    .map((l) => l.language_name);
+
   return pickCallLanguage(
     profile?.primary_language,
     female?.primary_language,
     male?.primary_language,
-    ...((langs || []) as { language_name?: string | null }[]).map((l) => l.language_name),
+    ...newestLangs,
     profile?.language,
     profile?.preferred_language,
     female?.preferred_language,
