@@ -7,18 +7,20 @@
  *  - On send: stores original body
  *  - On read: viewer sees raw native text
  */
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Send, Pin, X, Radio, Image as ImageIcon, Camera, Paperclip,
-  Mic, StopCircle, Users, Crown,
+  Mic, StopCircle, Users, Crown, Circle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import {
   useGroupChatRoom, useGroupChatBilling, gcLeave, gcEndLive, gcAnnounce,
+  groupChatBothEngaged, MAN_GROUP_CHAT_RATE, HOST_GROUP_CHAT_RATE_PER_MAN,
   type GroupChatMessage, type GroupChatParticipantInfo,
 } from "@/hooks/useGroupChat";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +46,13 @@ const FOLDER_PREFIX = "meowmeow/app/attachment";
 function initials(name?: string | null) {
   if (!name) return "U";
   return name.split(/\s+/).map(s => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+}
+
+function formatDuration(seconds: number) {
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
 async function signedUrl(path: string): Promise<string | null> {
@@ -78,7 +87,22 @@ export const GroupChatRoom: React.FC<Props> = ({
 }) => {
   const isHost = currentUserId === hostId;
   const isMan = viewerGender === "male";
-  const { messages, participants } = useGroupChatRoom(sessionId, hostId);
+  const { messages, participants, sessionHostEarning, reloadParticipants, reloadSessionStats } = useGroupChatRoom(sessionId, hostId);
+
+  const activeMen = useMemo(
+    () => participants.filter((p) => !p.is_host && (p.gender || "").toLowerCase() === "male"),
+    [participants],
+  );
+  const bothEngaged = useMemo(
+    () => groupChatBothEngaged(messages, hostId, activeMen.map((m) => m.user_id)),
+    [messages, hostId, activeMen],
+  );
+
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const viewerLangName = (viewerLanguage || "").trim() || "English";
 
@@ -159,13 +183,36 @@ export const GroupChatRoom: React.FC<Props> = ({
     };
   }, [sessionId, roomId, isHost, onClose]);
 
-  useGroupChatBilling({
-    sessionId, manId: isMan ? currentUserId : null, enabled: isMan,
-    onInsufficient: async () => {
+  const {
+    elapsedSeconds, minutesBilled, isBilling, billingActive, activeMenCount,
+  } = useGroupChatBilling({
+    sessionId,
+    hostId,
+    currentUserId,
+    isHost,
+    isMan,
+    bothEngaged,
+    activeMen,
+    onInsufficient: async (manId) => {
+      if (manId !== currentUserId) return;
       toast({ title: "Wallet empty", description: "Top up to keep chatting.", variant: "destructive" });
-      await gcLeave(sessionId); onClose();
+      await gcLeave(sessionId);
+      onClose();
+    },
+    onBilled: () => {
+      void reloadParticipants();
+      void reloadSessionStats();
     },
   });
+
+  const myParticipant = participants.find((p) => p.user_id === currentUserId);
+  const partialMinute = isBilling ? Math.max(0, elapsedSeconds - minutesBilled * 60) / 60 : 0;
+  const manSpentDisplay = isMan
+    ? (myParticipant?.total_billed ?? 0) + partialMinute * MAN_GROUP_CHAT_RATE
+    : 0;
+  const hostEarnedDisplay = isHost
+    ? sessionHostEarning + activeMen.length * partialMinute * HOST_GROUP_CHAT_RATE_PER_MAN
+    : 0;
 
   async function insertMessage(payload: Partial<GroupChatMessage>) {
     if (closedRef.current) return;
@@ -300,7 +347,12 @@ export const GroupChatRoom: React.FC<Props> = ({
           <div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 mb-1">Host</div>
             {hostParticipant ? (
-              <PersonRow p={hostParticipant} />
+              <PersonRow
+                p={hostParticipant}
+                nowMs={nowMs}
+                billingElapsed={isBilling ? elapsedSeconds : 0}
+                moneyLabel={isHost && billingActive ? `Earned ₹${hostEarnedDisplay.toFixed(2)}` : undefined}
+              />
             ) : (
               <div className="text-xs text-muted-foreground px-1">No host</div>
             )}
@@ -311,7 +363,21 @@ export const GroupChatRoom: React.FC<Props> = ({
             </div>
             {others.length === 0 ? (
               <div className="text-xs text-muted-foreground px-1">No one else yet</div>
-            ) : others.map(p => <PersonRow key={p.user_id} p={p} />)}
+            ) : others.map(p => (
+              <PersonRow
+                key={p.user_id}
+                p={p}
+                nowMs={nowMs}
+                billingElapsed={isBilling && p.user_id === currentUserId ? elapsedSeconds : 0}
+                moneyLabel={
+                  p.user_id === currentUserId && isMan && billingActive
+                    ? `Spent ₹${manSpentDisplay.toFixed(2)}`
+                    : p.total_billed
+                      ? `Spent ₹${Number(p.total_billed).toFixed(2)}`
+                      : undefined
+                }
+              />
+            ))}
           </div>
         </div>
       </ScrollArea>
@@ -412,9 +478,26 @@ export const GroupChatRoom: React.FC<Props> = ({
             {roomName}
           </div>
           <div className="text-[11px] text-muted-foreground truncate">
-            Host {hostLabel} · {participants.length} online · {isMan ? "₹2/min" : "Hosting · ₹1/min per man"}
+            Host {hostLabel} · {participants.length} online
+            {!bothEngaged && activeMenCount > 0 ? " · Say hi to start billing" : null}
+            {bothEngaged && !billingActive ? " · Waiting for a man to join" : null}
           </div>
         </div>
+        {billingActive ? (
+          <Badge variant="outline" className="shrink-0 text-[11px] gap-1 border-accent/50">
+            <Circle className="h-2 w-2 fill-accent text-accent animate-pulse" />
+            {isHost
+              ? `Earned ₹${hostEarnedDisplay.toFixed(2)}`
+              : isMan
+                ? `Spent ₹${manSpentDisplay.toFixed(2)}`
+                : `${activeMenCount} billing`}
+            {" · "}{formatDuration(elapsedSeconds)}
+          </Badge>
+        ) : isHost && activeMenCount === 0 ? (
+          <Badge variant="outline" className="shrink-0 text-[11px] text-muted-foreground">
+            Not billing
+          </Badge>
+        ) : null}
         <Button size="sm" variant="destructive" onClick={handleLeave}>
           <X className="w-3.5 h-3.5 mr-1" />{isHost ? "End" : "Leave"}
         </Button>
@@ -438,21 +521,37 @@ export const GroupChatRoom: React.FC<Props> = ({
   );
 };
 
-const PersonRow: React.FC<{ p: GroupChatParticipantInfo }> = ({ p }) => (
-  <div className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50">
-    <Avatar className="w-8 h-8">
-      <AvatarImage src={p.photo_url ?? undefined} />
-      <AvatarFallback className="text-[10px]">{initials(p.full_name)}</AvatarFallback>
-    </Avatar>
-    <div className="flex-1 min-w-0">
-      <div className="text-sm truncate flex items-center gap-1">
-        {p.full_name ?? "User"}
-        {p.is_host && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
+const PersonRow: React.FC<{
+  p: GroupChatParticipantInfo;
+  nowMs: number;
+  billingElapsed?: number;
+  moneyLabel?: string;
+}> = ({ p, nowMs, billingElapsed = 0, moneyLabel }) => {
+  const inRoomSecs = p.joined_at
+    ? Math.max(0, Math.floor((nowMs - new Date(p.joined_at).getTime()) / 1000))
+    : billingElapsed;
+  const timeLabel = billingElapsed > 0 ? formatDuration(billingElapsed) : formatDuration(inRoomSecs);
+
+  return (
+    <div className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50">
+      <Avatar className="w-8 h-8">
+        <AvatarImage src={p.photo_url ?? undefined} />
+        <AvatarFallback className="text-[10px]">{initials(p.full_name)}</AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm truncate flex items-center gap-1">
+          {p.full_name ?? "User"}
+          {p.is_host && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
+        </div>
+        <div className="text-[10px] text-muted-foreground capitalize flex flex-wrap gap-x-1.5">
+          <span>{p.gender ?? ""}</span>
+          <span>· {timeLabel}</span>
+          {moneyLabel ? <span className="text-accent">· {moneyLabel}</span> : null}
+        </div>
       </div>
-      <div className="text-[10px] text-muted-foreground capitalize">{p.gender ?? ""}</div>
+      <span className="w-2 h-2 rounded-full bg-green-500" />
     </div>
-    <span className="w-2 h-2 rounded-full bg-green-500" />
-  </div>
-);
+  );
+};
 
 export default GroupChatRoom;

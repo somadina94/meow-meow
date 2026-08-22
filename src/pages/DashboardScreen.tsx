@@ -1526,8 +1526,34 @@ const DashboardScreen = () => {
                         activeChatCount={woman.active_chat_count}
                         onClick={() => handleStartChatWithWoman(woman.user_id, woman.full_name || "User")}
                         actions={
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${woman.user_id}`); }}>
+                          <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                            {canCallEachOther(userLanguage, woman.primary_language) && (
+                              <>
+                                {settings.audioCallEnabled !== false && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, "audio")}
+                                    aria-label="Audio call"
+                                  >
+                                    <Phone className="w-3.5 h-3.5 text-primary" />
+                                  </Button>
+                                )}
+                                {settings.videoCallEnabled !== false && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, "video")}
+                                    aria-label="Video call"
+                                  >
+                                    <Video className="w-3.5 h-3.5 text-primary" />
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(`/profile/${woman.user_id}`)}>
                               <Eye className="w-3.5 h-3.5 text-primary" />
                             </Button>
                           </div>
@@ -1557,8 +1583,34 @@ const DashboardScreen = () => {
                         subtitle={userCodeMap[woman.user_id] ? `${userCodeMap[woman.user_id]} • ${woman.primary_language} → ${userLanguage}` : `${woman.primary_language} → ${userLanguage}`}
                         onClick={() => handleStartChatWithWoman(woman.user_id, woman.full_name || "User")}
                         actions={
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${woman.user_id}`); }}>
+                          <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                            {canCallEachOther(userLanguage, woman.primary_language) && (
+                              <>
+                                {settings.audioCallEnabled !== false && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, "audio")}
+                                    aria-label="Audio call"
+                                  >
+                                    <Phone className="w-3.5 h-3.5 text-primary" />
+                                  </Button>
+                                )}
+                                {settings.videoCallEnabled !== false && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => initiateCall(woman.user_id, woman.full_name || "User", woman.photo_url, "video")}
+                                    aria-label="Video call"
+                                  >
+                                    <Video className="w-3.5 h-3.5 text-primary" />
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate(`/profile/${woman.user_id}`)}>
                               <Eye className="w-3.5 h-3.5 text-primary" />
                             </Button>
                           </div>

@@ -47,6 +47,30 @@ export interface GroupChatParticipantInfo {
   photo_url?: string | null;
   gender?: string | null;
   is_host?: boolean;
+  total_billed?: number;
+  last_billed_minute?: number;
+}
+
+export const MAN_GROUP_CHAT_RATE = 2;
+export const HOST_GROUP_CHAT_RATE_PER_MAN = 1;
+
+function isRealGroupChatMessage(body: string | null | undefined): boolean {
+  const b = (body || "").trim();
+  return b.length > 0 && !b.startsWith("👋");
+}
+
+/** Billing starts once the host and at least one man have sent a real message. */
+export function groupChatBothEngaged(
+  messages: GroupChatMessage[],
+  hostId: string,
+  maleUserIds: string[],
+): boolean {
+  if (maleUserIds.length === 0) return false;
+  const hostSent = messages.some((m) => m.sender_id === hostId && isRealGroupChatMessage(m.body));
+  const manSent = messages.some(
+    (m) => maleUserIds.includes(m.sender_id) && isRealGroupChatMessage(m.body),
+  );
+  return hostSent && manSent;
 }
 
 
@@ -95,8 +119,14 @@ export function useGroupChatRooms(opts?: { onlyLive?: boolean }) {
 export function useGroupChatRoom(sessionId: string | null, hostId?: string | null) {
   const [messages, setMessages] = useState<GroupChatMessage[]>([]);
   const [participants, setParticipants] = useState<GroupChatParticipantInfo[]>([]);
+  const [sessionHostEarning, setSessionHostEarning] = useState(0);
 
-  const enrich = useCallback(async (rows: { user_id: string; joined_at: string }[]) => {
+  const enrich = useCallback(async (rows: {
+    user_id: string;
+    joined_at: string;
+    total_billed?: number;
+    last_billed_minute?: number;
+  }[]) => {
     if (!rows.length) return [] as GroupChatParticipantInfo[];
     const ids = Array.from(new Set(rows.map(r => r.user_id)));
     const { data: profs } = await supabase
@@ -113,9 +143,31 @@ export function useGroupChatRoom(sessionId: string | null, hostId?: string | nul
         photo_url: (p as any).photo_url ?? null,
         gender: (p as any).gender ?? null,
         is_host: hostId ? r.user_id === hostId : false,
+        total_billed: Number(r.total_billed) || 0,
+        last_billed_minute: Number(r.last_billed_minute) || 0,
       } as GroupChatParticipantInfo;
     });
   }, [hostId]);
+
+  const reloadParticipants = useCallback(async () => {
+    if (!sessionId) return;
+    const { data } = await supabase
+      .from("group_chat_participants")
+      .select("user_id, joined_at, total_billed, last_billed_minute")
+      .eq("session_id", sessionId)
+      .is("left_at", null);
+    setParticipants(await enrich(data ?? []));
+  }, [sessionId, enrich]);
+
+  const reloadSessionStats = useCallback(async () => {
+    if (!sessionId) return;
+    const { data } = await supabase
+      .from("group_chat_sessions")
+      .select("total_host_earning")
+      .eq("id", sessionId)
+      .maybeSingle();
+    setSessionHostEarning(Number(data?.total_host_earning) || 0);
+  }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -132,10 +184,17 @@ export function useGroupChatRoom(sessionId: string | null, hostId?: string | nul
 
       const { data: parts } = await supabase
         .from("group_chat_participants")
-        .select("user_id, joined_at")
+        .select("user_id, joined_at, total_billed, last_billed_minute")
         .eq("session_id", sessionId)
         .is("left_at", null);
       if (alive) setParticipants(await enrich(parts ?? []));
+
+      const { data: sess } = await supabase
+        .from("group_chat_sessions")
+        .select("total_host_earning")
+        .eq("id", sessionId)
+        .maybeSingle();
+      if (alive) setSessionHostEarning(Number(sess?.total_host_earning) || 0);
     })();
 
     const ch = supabase
@@ -154,60 +213,190 @@ export function useGroupChatRoom(sessionId: string | null, hostId?: string | nul
         async () => {
           const { data } = await supabase
             .from("group_chat_participants")
-            .select("user_id, joined_at")
+            .select("user_id, joined_at, total_billed, last_billed_minute")
             .eq("session_id", sessionId)
             .is("left_at", null);
           setParticipants(await enrich(data ?? []));
+        })
+      .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "group_chat_sessions", filter: `id=eq.${sessionId}` },
+        (p) => {
+          const row = p.new as { total_host_earning?: number };
+          setSessionHostEarning(Number(row.total_host_earning) || 0);
         })
       .subscribe();
 
     return () => { alive = false; supabase.removeChannel(ch); };
   }, [sessionId, enrich]);
 
-  return { messages, participants };
+  return { messages, participants, sessionHostEarning, reloadParticipants, reloadSessionStats };
 }
 
+type GroupChatBillResult = {
+  success?: boolean;
+  insufficient?: boolean;
+  skipped?: string;
+  duplicate?: boolean;
+  minute?: number;
+};
 
-/** Per-minute billing tick for men in a group chat room. Stops when the man leaves or no men remain. */
+/** Host drives billing for every active man; each man also self-bills as a fallback (idempotent RPC). */
 export function useGroupChatBilling(params: {
   sessionId: string | null;
-  manId: string | null;
-  enabled: boolean;
-  onInsufficient: () => void;
+  hostId: string | null;
+  currentUserId: string | null;
+  isHost: boolean;
+  isMan: boolean;
+  bothEngaged: boolean;
+  activeMen: GroupChatParticipantInfo[];
+  onInsufficient: (manId: string) => void;
+  onBilled?: () => void;
 }) {
-  const ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [minutesBilled, setMinutesBilled] = useState(0);
+  const [isBilling, setIsBilling] = useState(false);
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startRef = useRef<number | null>(null);
+  const billedRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const wasDriverRef = useRef(false);
+  const sessionIdRef = useRef(params.sessionId);
+  const hostIdRef = useRef(params.hostId);
+  const activeMenRef = useRef(params.activeMen);
+  const onInsufficientRef = useRef(params.onInsufficient);
+  const onBilledRef = useRef(params.onBilled);
+
+  sessionIdRef.current = params.sessionId;
+  hostIdRef.current = params.hostId;
+  activeMenRef.current = params.activeMen;
+  onInsufficientRef.current = params.onInsufficient;
+  onBilledRef.current = params.onBilled;
+
+  const activeMenCount = params.activeMen.length;
+  const billingActive = params.bothEngaged && activeMenCount > 0;
+  const isDriver = billingActive && !!params.sessionId && (params.isHost || params.isMan);
+
+  const billMan = useCallback(async (manId: string, reason: string) => {
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    const { data } = await supabase.rpc("bill_group_chat_minute", {
+      p_session_id: sid,
+      p_man_id: manId,
+    });
+    const r = data as GroupChatBillResult | null;
+    if (!r) return;
+
+    if (r.skipped === "admin" || r.skipped === "not_male" || r.skipped === "host_not_billable") {
+      console.info("[group-chat billing] skipped", r.skipped, manId);
+      return;
+    }
+    if (r.skipped === "no_active_men" || r.skipped === "man_left") {
+      console.info("[group-chat billing] transient skip", r.skipped);
+      return;
+    }
+    if (r.skipped === "not_live") return;
+
+    if (r.duplicate) return;
+
+    if (r.success === false && r.insufficient) {
+      onInsufficientRef.current(manId);
+      return;
+    }
+
+    if (r.success) {
+      console.info("[group-chat billing] charged", reason, manId, r);
+      onBilledRef.current?.();
+    }
+  }, []);
+
+  const billDueMinute = useCallback(async (minuteIndex: number) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    try {
+      const sid = sessionIdRef.current;
+      if (!sid) return;
+
+      const { data: session } = await supabase
+        .from("group_chat_sessions")
+        .select("ended_at")
+        .eq("id", sid)
+        .maybeSingle();
+      if (session?.ended_at) return;
+
+      const men = activeMenRef.current;
+      if (params.isHost) {
+        await Promise.all(men.map((m) => billMan(m.user_id, `host minute ${minuteIndex}`)));
+      } else if (params.isMan && params.currentUserId) {
+        await billMan(params.currentUserId, `man minute ${minuteIndex}`);
+      }
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [billMan, params.isHost, params.isMan, params.currentUserId]);
+
+  const billDueMinuteRef = useRef(billDueMinute);
+  billDueMinuteRef.current = billDueMinute;
+
   useEffect(() => {
-    if (!params.enabled || !params.sessionId || !params.manId) return;
-    const stop = () => {
-      if (ref.current) {
-        clearInterval(ref.current);
-        ref.current = null;
+    if (!isDriver) {
+      wasDriverRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      startRef.current = null;
+      billedRef.current = 0;
+      setElapsedSeconds(0);
+      setMinutesBilled(0);
+      setIsBilling(false);
+      return;
+    }
+
+    if (wasDriverRef.current && intervalRef.current) return;
+    wasDriverRef.current = true;
+
+    billedRef.current = 0;
+    const start = Date.now();
+    startRef.current = start;
+    setIsBilling(true);
+    setElapsedSeconds(0);
+    setMinutesBilled(0);
+    console.info("[group-chat billing] started", {
+      sessionId: params.sessionId,
+      isHost: params.isHost,
+      activeMen: activeMenRef.current.length,
+    });
+
+    intervalRef.current = setInterval(() => {
+      const anchor = startRef.current;
+      if (!anchor) return;
+      const secs = Math.max(0, Math.floor((Date.now() - anchor) / 1000));
+      setElapsedSeconds(secs);
+      const due = Math.floor(secs / 60);
+      if (due > billedRef.current) {
+        billedRef.current = due;
+        setMinutesBilled(due);
+        void billDueMinuteRef.current(due);
+      }
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
-    const tick = async () => {
-      const [{ data: session }, { data: part }] = await Promise.all([
-        supabase.from("group_chat_sessions").select("ended_at, host_id").eq("id", params.sessionId!).maybeSingle(),
-        supabase.from("group_chat_participants").select("left_at").eq("session_id", params.sessionId!).eq("user_id", params.manId!).maybeSingle(),
-      ]);
-      if (!session || session.ended_at || session.host_id === params.manId || !part || part.left_at) {
-        stop();
-        return;
-      }
-      const { data } = await supabase.rpc("bill_group_chat_minute", {
-        p_session_id: params.sessionId!,
-        p_man_id: params.manId!,
-      });
-      const r = data as { success?: boolean; insufficient?: boolean; skipped?: string } | null;
-      if (r?.skipped === "no_active_men" || r?.skipped === "man_left" || r?.skipped === "not_live" || r?.skipped === "host_not_billable") {
-        stop();
-        return;
-      }
-      if (r && r.success === false && r.insufficient) params.onInsufficient();
-    };
-    // First tick after 60s so men get the first minute free of immediate debit
-    ref.current = setInterval(tick, 60_000);
-    return () => stop();
-  }, [params.sessionId, params.manId, params.enabled]);
+  }, [isDriver, params.sessionId, params.isHost]);
+
+  return {
+    elapsedSeconds,
+    minutesBilled,
+    isBilling,
+    bothEngaged: params.bothEngaged,
+    billingActive,
+    activeMenCount,
+  };
 }
 
 export async function gcGoLive(roomId: string) {
