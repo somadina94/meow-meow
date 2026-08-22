@@ -8,7 +8,8 @@ RUN bun install --frozen-lockfile || bun install
 
 COPY . .
 
-# VITE_* from .env are baked in at build time
+# VITE_* are baked in at build time from .env.production (or build-args if set).
+# .env.production MUST match the server's ANON_KEY — not the supabase-demo placeholder.
 RUN bun run build
 
 EXPOSE 3030
