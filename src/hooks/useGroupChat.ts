@@ -365,40 +365,40 @@ export function useGroupChatBilling(params: {
     }
   }, []);
 
-  const billMan = useCallback(async (manId: string, reason: string) => {
+  const billMan = useCallback(async (manId: string, reason: string): Promise<GroupChatBillResult | null> => {
     const sid = sessionIdRef.current;
-    if (!sid) return;
+    if (!sid) return null;
     const r = await billGroupChatMinute(sid, manId);
-    if (!r) return;
+    if (!r) return null;
 
     if (r.skipped === "admin" || r.skipped === "not_male" || r.skipped === "host_not_billable") {
       setSkipReason(r.skipped);
       onBillingSkipRef.current?.(r.skipped);
       console.info("[group-chat billing] skipped", r.skipped, manId);
-      return;
+      return r;
     }
     if (r.skipped === "waiting_for_replies") {
       setSkipReason("waiting_for_replies");
-      return;
+      return r;
     }
     if (r.skipped === "no_active_men" || r.skipped === "man_left" || r.skipped === "not_live" || r.skipped === "host_not_live") {
       console.info("[group-chat billing] transient skip", r.skipped);
-      return;
+      return r;
     }
 
-    if (r.duplicate || r.duplicate_skipped) return;
+    if (r.duplicate || r.duplicate_skipped) return r;
 
     if (r.success === false) {
       if (r.insufficient || (r.error && /insufficient/i.test(r.error))) {
         onInsufficientRef.current(manId);
-        return;
+        return r;
       }
       if (r.error) {
         console.error("[group-chat billing] failed", reason, manId, r.error);
         setSkipReason(r.error);
         onBillingSkipRef.current?.(r.error);
       }
-      return;
+      return r;
     }
 
     if (r.success) {
@@ -408,6 +408,7 @@ export function useGroupChatBilling(params: {
       onWalletUpdatedRef.current?.();
       dispatchWalletRefresh();
     }
+    return r;
   }, []);
 
   const billDueMinute = useCallback(async (minuteIndex: number) => {
@@ -425,10 +426,25 @@ export function useGroupChatBilling(params: {
       if (session?.ended_at) return;
 
       const men = activeMenRef.current;
+      const results: GroupChatBillResult[] = [];
       if (params.isHost) {
-        await Promise.all(men.map((m) => billMan(m.user_id, `host minute ${minuteIndex}`)));
+        for (const m of men) {
+          const r = await billMan(m.user_id, `host minute ${minuteIndex}`);
+          if (r) results.push(r);
+        }
       } else if (params.isMan && params.currentUserId) {
-        await billMan(params.currentUserId, `man minute ${minuteIndex}`);
+        const r = await billMan(params.currentUserId, `man minute ${minuteIndex}`);
+        if (r) results.push(r);
+      }
+
+      const landed = results.some((r) =>
+        (r.success && !r.skipped && !r.duplicate && !r.duplicate_skipped) ||
+        r.duplicate ||
+        r.duplicate_skipped,
+      );
+      if (landed) {
+        billedRef.current = Math.max(billedRef.current, minuteIndex);
+        setMinutesBilled(billedRef.current);
       }
     } finally {
       inFlightRef.current = false;
@@ -472,9 +488,8 @@ export function useGroupChatBilling(params: {
       const secs = Math.max(0, Math.floor((Date.now() - anchor) / 1000));
       setElapsedSeconds(secs);
       const due = Math.floor(secs / 60);
+      // Keep retrying the unpaid minute until the RPC actually succeeds.
       if (due > billedRef.current) {
-        billedRef.current = due;
-        setMinutesBilled(due);
         void billDueMinuteRef.current(due);
       }
     }, 1000);

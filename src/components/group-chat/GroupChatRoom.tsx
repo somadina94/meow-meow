@@ -216,7 +216,7 @@ export const GroupChatRoom: React.FC<Props> = ({
   }, [sessionId, roomId, isHost, onClose]);
 
   const {
-    elapsedSeconds, minutesBilled, isBilling, billingActive, activeMenCount, skipReason,
+    elapsedSeconds, isBilling, billingActive, activeMenCount, skipReason,
   } = useGroupChatBilling({
     sessionId,
     hostId,
@@ -256,12 +256,12 @@ export const GroupChatRoom: React.FC<Props> = ({
   });
 
   const myParticipant = participants.find((p) => p.user_id === currentUserId);
-  const partialMinute = isBilling ? Math.max(0, elapsedSeconds - minutesBilled * 60) / 60 : 0;
+  const liveMinutes = isBilling ? elapsedSeconds / 60 : 0;
   const manSpentDisplay = isMan
-    ? (myParticipant?.total_billed ?? 0) + partialMinute * MAN_GROUP_CHAT_RATE
+    ? Math.max(myParticipant?.total_billed ?? 0, liveMinutes * MAN_GROUP_CHAT_RATE)
     : 0;
   const hostEarnedDisplay = isHost
-    ? sessionHostEarning + activeMen.length * partialMinute * HOST_GROUP_CHAT_RATE_PER_MAN
+    ? Math.max(sessionHostEarning, liveMinutes * activeMen.length * HOST_GROUP_CHAT_RATE_PER_MAN)
     : 0;
 
   async function insertMessage(payload: Partial<GroupChatMessage>) {
@@ -535,6 +535,9 @@ export const GroupChatRoom: React.FC<Props> = ({
             {!bothEngaged && maleUserIds.length > 0 ? " · Say hi to start billing" : null}
             {skipReason === "waiting_for_replies" ? " · Waiting for both to message" : null}
             {skipReason === "admin" ? " · Admin: no wallet charges" : null}
+            {skipReason && skipReason !== "waiting_for_replies" && skipReason !== "admin"
+              ? ` · Billing error: ${skipReason}`
+              : null}
           </div>
         </div>
         {billingActive ? (
