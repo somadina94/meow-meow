@@ -282,10 +282,12 @@ type GroupChatBillResult = {
   insufficient?: boolean;
   skipped?: string;
   duplicate?: boolean;
+  duplicate_skipped?: boolean;
   minute?: number;
   charged?: number;
   earned?: number;
   error?: string;
+  balance?: number;
 };
 
 export async function billGroupChatMinute(
@@ -352,7 +354,8 @@ export function useGroupChatBilling(params: {
   onWalletUpdatedRef.current = params.onWalletUpdated;
 
   const activeMenCount = params.activeMen.length;
-  const billingActive = params.bothEngaged && activeMenCount > 0;
+  // Start timer when a man is in the room; server skips charges until mutual engagement.
+  const billingActive = activeMenCount > 0;
   const shouldRun = billingActive && !!params.sessionId && (params.isHost || params.isMan);
 
   const stopInterval = useCallback(() => {
@@ -374,16 +377,19 @@ export function useGroupChatBilling(params: {
       console.info("[group-chat billing] skipped", r.skipped, manId);
       return;
     }
-    if (r.skipped === "no_active_men" || r.skipped === "man_left") {
+    if (r.skipped === "waiting_for_replies") {
+      setSkipReason("waiting_for_replies");
+      return;
+    }
+    if (r.skipped === "no_active_men" || r.skipped === "man_left" || r.skipped === "not_live" || r.skipped === "host_not_live") {
       console.info("[group-chat billing] transient skip", r.skipped);
       return;
     }
-    if (r.skipped === "not_live") return;
 
-    if (r.duplicate) return;
+    if (r.duplicate || r.duplicate_skipped) return;
 
     if (r.success === false) {
-      if (r.insufficient) {
+      if (r.insufficient || (r.error && /insufficient/i.test(r.error))) {
         onInsufficientRef.current(manId);
         return;
       }

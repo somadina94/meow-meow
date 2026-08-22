@@ -533,7 +533,7 @@ export const GroupChatRoom: React.FC<Props> = ({
             Host {hostLabel} · {participants.length} online
             {walletBalance !== null ? ` · Wallet ₹${walletBalance.toFixed(2)}` : ""}
             {!bothEngaged && maleUserIds.length > 0 ? " · Say hi to start billing" : null}
-            {bothEngaged && !billingActive ? " · Waiting for a man to join" : null}
+            {skipReason === "waiting_for_replies" ? " · Waiting for both to message" : null}
             {skipReason === "admin" ? " · Admin: no wallet charges" : null}
           </div>
         </div>
