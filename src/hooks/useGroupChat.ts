@@ -59,6 +59,14 @@ function isRealGroupChatMessage(body: string | null | undefined): boolean {
   return b.length > 0 && !b.startsWith("👋");
 }
 
+/** Active men in a session (only men can join via group_chat_join). */
+export function groupChatActiveMen(
+  participants: GroupChatParticipantInfo[],
+  hostId: string,
+): GroupChatParticipantInfo[] {
+  return participants.filter((p) => p.user_id !== hostId && !p.is_host);
+}
+
 /** Billing starts once the host and at least one man have sent a real message. */
 export function groupChatBothEngaged(
   messages: GroupChatMessage[],
@@ -71,6 +79,12 @@ export function groupChatBothEngaged(
     (m) => maleUserIds.includes(m.sender_id) && isRealGroupChatMessage(m.body),
   );
   return hostSent && manSent;
+}
+
+export function dispatchWalletRefresh() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("meow:wallet-refresh"));
+  }
 }
 
 
@@ -251,6 +265,7 @@ export function useGroupChatBilling(params: {
   activeMen: GroupChatParticipantInfo[];
   onInsufficient: (manId: string) => void;
   onBilled?: () => void;
+  onWalletUpdated?: () => void;
 }) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [minutesBilled, setMinutesBilled] = useState(0);
@@ -266,12 +281,14 @@ export function useGroupChatBilling(params: {
   const activeMenRef = useRef(params.activeMen);
   const onInsufficientRef = useRef(params.onInsufficient);
   const onBilledRef = useRef(params.onBilled);
+  const onWalletUpdatedRef = useRef(params.onWalletUpdated);
 
   sessionIdRef.current = params.sessionId;
   hostIdRef.current = params.hostId;
   activeMenRef.current = params.activeMen;
   onInsufficientRef.current = params.onInsufficient;
   onBilledRef.current = params.onBilled;
+  onWalletUpdatedRef.current = params.onWalletUpdated;
 
   const activeMenCount = params.activeMen.length;
   const billingActive = params.bothEngaged && activeMenCount > 0;
@@ -280,12 +297,19 @@ export function useGroupChatBilling(params: {
   const billMan = useCallback(async (manId: string, reason: string) => {
     const sid = sessionIdRef.current;
     if (!sid) return;
-    const { data } = await supabase.rpc("bill_group_chat_minute", {
+    const { data, error } = await supabase.rpc("bill_group_chat_minute", {
       p_session_id: sid,
       p_man_id: manId,
     });
+    if (error) {
+      console.error("[group-chat billing] RPC error", reason, manId, error.message);
+      return;
+    }
     const r = data as GroupChatBillResult | null;
-    if (!r) return;
+    if (!r) {
+      console.error("[group-chat billing] empty RPC response", reason, manId);
+      return;
+    }
 
     if (r.skipped === "admin" || r.skipped === "not_male" || r.skipped === "host_not_billable") {
       console.info("[group-chat billing] skipped", r.skipped, manId);
@@ -307,6 +331,8 @@ export function useGroupChatBilling(params: {
     if (r.success) {
       console.info("[group-chat billing] charged", reason, manId, r);
       onBilledRef.current?.();
+      onWalletUpdatedRef.current?.();
+      dispatchWalletRefresh();
     }
   }, []);
 

@@ -1093,6 +1093,13 @@ const DashboardScreen = () => {
     return () => clearInterval(intervalId);
   }, [currentUserId]);
 
+  useEffect(() => {
+    if (!currentUserId) return;
+    const onRefresh = () => { loadWalletBalance(); };
+    window.addEventListener("meow:wallet-refresh", onRefresh);
+    return () => window.removeEventListener("meow:wallet-refresh", onRefresh);
+  }, [currentUserId]);
+
   // Eager-load active chats on mount for unread badge
   useEffect(() => {
     if (!currentUserId) return;

@@ -7,7 +7,7 @@
  *  - On send: stores original body
  *  - On read: viewer sees raw native text
  */
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Send, Pin, X, Radio, Image as ImageIcon, Camera, Paperclip,
   Mic, StopCircle, Users, Crown, Circle,
@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   useGroupChatRoom, useGroupChatBilling, gcLeave, gcEndLive, gcAnnounce,
-  groupChatBothEngaged, MAN_GROUP_CHAT_RATE, HOST_GROUP_CHAT_RATE_PER_MAN,
+  groupChatBothEngaged, groupChatActiveMen, MAN_GROUP_CHAT_RATE, HOST_GROUP_CHAT_RATE_PER_MAN,
   type GroupChatMessage, type GroupChatParticipantInfo,
 } from "@/hooks/useGroupChat";
 import { supabase } from "@/integrations/supabase/client";
@@ -90,13 +90,35 @@ export const GroupChatRoom: React.FC<Props> = ({
   const { messages, participants, sessionHostEarning, reloadParticipants, reloadSessionStats } = useGroupChatRoom(sessionId, hostId);
 
   const activeMen = useMemo(
-    () => participants.filter((p) => !p.is_host && (p.gender || "").toLowerCase() === "male"),
-    [participants],
+    () => groupChatActiveMen(participants, hostId),
+    [participants, hostId],
   );
   const bothEngaged = useMemo(
     () => groupChatBothEngaged(messages, hostId, activeMen.map((m) => m.user_id)),
     [messages, hostId, activeMen],
   );
+
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+
+  const refreshWallet = useCallback(async () => {
+    if (!currentUserId) return;
+    if (isMan) {
+      const { data } = await supabase.rpc("get_men_wallet_balance", { p_user_id: currentUserId });
+      if (data) setWalletBalance(Number((data as { balance?: number }).balance) || 0);
+    } else if (isHost) {
+      const { data } = await supabase.rpc("get_women_wallet_balance", { p_user_id: currentUserId });
+      if (data) {
+        setWalletBalance(Number((data as { available_balance?: number }).available_balance) || 0);
+      }
+    }
+  }, [currentUserId, isMan, isHost]);
+
+  useEffect(() => {
+    void refreshWallet();
+    const onRefresh = () => { void refreshWallet(); };
+    window.addEventListener("meow:wallet-refresh", onRefresh);
+    return () => window.removeEventListener("meow:wallet-refresh", onRefresh);
+  }, [refreshWallet]);
 
   const [nowMs, setNowMs] = useState(Date.now());
   useEffect(() => {
@@ -203,6 +225,7 @@ export const GroupChatRoom: React.FC<Props> = ({
       void reloadParticipants();
       void reloadSessionStats();
     },
+    onWalletUpdated: refreshWallet,
   });
 
   const myParticipant = participants.find((p) => p.user_id === currentUserId);
@@ -479,6 +502,7 @@ export const GroupChatRoom: React.FC<Props> = ({
           </div>
           <div className="text-[11px] text-muted-foreground truncate">
             Host {hostLabel} · {participants.length} online
+            {walletBalance !== null ? ` · Wallet ₹${walletBalance.toFixed(2)}` : ""}
             {!bothEngaged && activeMenCount > 0 ? " · Say hi to start billing" : null}
             {bothEngaged && !billingActive ? " · Waiting for a man to join" : null}
           </div>
