@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: https://www.meow-meow.co.in:8443
-      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzg1ODE0NjI4LCJleHAiOjE4MTczNTA2Mjh9.iIZYL--y80aENoRUdc5U5z9RkK5CBotbT2KHzQdZjTM
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzg1ODE0NjI4LCJleHAiOjIxMDExNzQ2Mjh9.Y-xSzsoWio6UlfzA0hL4Zra6hno-zG81-VwCpalUcbk
     steps:
       - uses: actions/checkout@v4
 
