@@ -20,7 +20,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   useGroupChatRoom, useGroupChatBilling, gcLeave, gcEndLive, gcAnnounce,
-  groupChatBothEngaged, groupChatActiveMen, MAN_GROUP_CHAT_RATE, HOST_GROUP_CHAT_RATE_PER_MAN,
+  groupChatBothEngaged, groupChatActiveMen, groupChatMaleUserIds,
+  billGroupChatLeftover, dispatchWalletRefresh,
+  MAN_GROUP_CHAT_RATE, HOST_GROUP_CHAT_RATE_PER_MAN,
   type GroupChatMessage, type GroupChatParticipantInfo,
 } from "@/hooks/useGroupChat";
 import { supabase } from "@/integrations/supabase/client";
@@ -90,12 +92,16 @@ export const GroupChatRoom: React.FC<Props> = ({
   const { messages, participants, sessionHostEarning, reloadParticipants, reloadSessionStats } = useGroupChatRoom(sessionId, hostId);
 
   const activeMen = useMemo(
-    () => groupChatActiveMen(participants, hostId),
-    [participants, hostId],
+    () => groupChatActiveMen(participants, hostId, messages),
+    [participants, hostId, messages],
+  );
+  const maleUserIds = useMemo(
+    () => groupChatMaleUserIds(participants, hostId, messages),
+    [participants, hostId, messages],
   );
   const bothEngaged = useMemo(
-    () => groupChatBothEngaged(messages, hostId, activeMen.map((m) => m.user_id)),
-    [messages, hostId, activeMen],
+    () => groupChatBothEngaged(messages, hostId, maleUserIds),
+    [messages, hostId, maleUserIds],
   );
 
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
@@ -117,7 +123,11 @@ export const GroupChatRoom: React.FC<Props> = ({
     void refreshWallet();
     const onRefresh = () => { void refreshWallet(); };
     window.addEventListener("meow:wallet-refresh", onRefresh);
-    return () => window.removeEventListener("meow:wallet-refresh", onRefresh);
+    const poll = window.setInterval(() => { void refreshWallet(); }, 5000);
+    return () => {
+      window.removeEventListener("meow:wallet-refresh", onRefresh);
+      window.clearInterval(poll);
+    };
   }, [refreshWallet]);
 
   const [nowMs, setNowMs] = useState(Date.now());
@@ -206,7 +216,7 @@ export const GroupChatRoom: React.FC<Props> = ({
   }, [sessionId, roomId, isHost, onClose]);
 
   const {
-    elapsedSeconds, minutesBilled, isBilling, billingActive, activeMenCount,
+    elapsedSeconds, minutesBilled, isBilling, billingActive, activeMenCount, skipReason,
   } = useGroupChatBilling({
     sessionId,
     hostId,
@@ -221,9 +231,26 @@ export const GroupChatRoom: React.FC<Props> = ({
       await gcLeave(sessionId);
       onClose();
     },
-    onBilled: () => {
+    onBilled: (result) => {
       void reloadParticipants();
       void reloadSessionStats();
+      void refreshWallet();
+      dispatchWalletRefresh();
+      const charged = Number(result.charged) || MAN_GROUP_CHAT_RATE;
+      if (isMan) {
+        toast({ title: "Group chat billed", description: `₹${charged.toFixed(2)} charged for this minute.` });
+      } else if (isHost) {
+        const earned = Number(result.earned) || HOST_GROUP_CHAT_RATE_PER_MAN;
+        toast({ title: "Group chat earning", description: `₹${earned.toFixed(2)} credited for this minute.` });
+      }
+    },
+    onBillingSkip: (reason) => {
+      if (reason === "admin") {
+        toast({
+          title: "Billing skipped",
+          description: "Admin test accounts are not charged in group chat. Use a regular account to test wallets.",
+        });
+      }
     },
     onWalletUpdated: refreshWallet,
   });
@@ -339,8 +366,10 @@ export const GroupChatRoom: React.FC<Props> = ({
       return;
     }
     await gcAnnounce(sessionId, roomId, currentUserId, viewerName, viewerGender, "leave");
+    if (isMan) await billGroupChatLeftover(sessionId, currentUserId);
     await gcLeave(sessionId);
     closedRef.current = true;
+    dispatchWalletRefresh();
     onClose();
   };
 
@@ -503,8 +532,9 @@ export const GroupChatRoom: React.FC<Props> = ({
           <div className="text-[11px] text-muted-foreground truncate">
             Host {hostLabel} · {participants.length} online
             {walletBalance !== null ? ` · Wallet ₹${walletBalance.toFixed(2)}` : ""}
-            {!bothEngaged && activeMenCount > 0 ? " · Say hi to start billing" : null}
+            {!bothEngaged && maleUserIds.length > 0 ? " · Say hi to start billing" : null}
             {bothEngaged && !billingActive ? " · Waiting for a man to join" : null}
+            {skipReason === "admin" ? " · Admin: no wallet charges" : null}
           </div>
         </div>
         {billingActive ? (

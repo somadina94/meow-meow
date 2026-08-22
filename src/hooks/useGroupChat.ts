@@ -54,17 +54,48 @@ export interface GroupChatParticipantInfo {
 export const MAN_GROUP_CHAT_RATE = 2;
 export const HOST_GROUP_CHAT_RATE_PER_MAN = 1;
 
-function isRealGroupChatMessage(body: string | null | undefined): boolean {
-  const b = (body || "").trim();
-  return b.length > 0 && !b.startsWith("👋");
+function isEngagementMessage(m: GroupChatMessage, hostId: string, maleUserIds: string[]): boolean {
+  const fromHost = m.sender_id === hostId;
+  const fromMan = maleUserIds.includes(m.sender_id)
+    || ((m.sender_gender || "").toLowerCase() === "male" && m.sender_id !== hostId);
+  if (!fromHost && !fromMan) return false;
+  const b = (m.body || "").trim();
+  if (b.length > 0 && !b.startsWith("👋")) return true;
+  return !!(m.media_url && m.media_url.trim());
 }
 
-/** Active men in a session (only men can join via group_chat_join). */
+/** Active men — participants first; fall back to male senders while participant rows load. */
 export function groupChatActiveMen(
   participants: GroupChatParticipantInfo[],
   hostId: string,
+  messages: GroupChatMessage[] = [],
 ): GroupChatParticipantInfo[] {
-  return participants.filter((p) => p.user_id !== hostId && !p.is_host);
+  const fromParts = participants.filter((p) => p.user_id !== hostId && !p.is_host);
+  if (fromParts.length > 0) return fromParts;
+
+  const manIds = new Set<string>();
+  for (const m of messages) {
+    if (m.sender_id === hostId) continue;
+    if ((m.sender_gender || "").toLowerCase() === "male") manIds.add(m.sender_id);
+  }
+  return Array.from(manIds).map((user_id) => ({
+    user_id,
+    joined_at: new Date().toISOString(),
+  }));
+}
+
+export function groupChatMaleUserIds(
+  participants: GroupChatParticipantInfo[],
+  hostId: string,
+  messages: GroupChatMessage[],
+): string[] {
+  const ids = new Set(groupChatActiveMen(participants, hostId, messages).map((m) => m.user_id));
+  for (const m of messages) {
+    if (m.sender_id !== hostId && (m.sender_gender || "").toLowerCase() === "male") {
+      ids.add(m.sender_id);
+    }
+  }
+  return Array.from(ids);
 }
 
 /** Billing starts once the host and at least one man have sent a real message. */
@@ -74,9 +105,9 @@ export function groupChatBothEngaged(
   maleUserIds: string[],
 ): boolean {
   if (maleUserIds.length === 0) return false;
-  const hostSent = messages.some((m) => m.sender_id === hostId && isRealGroupChatMessage(m.body));
+  const hostSent = messages.some((m) => m.sender_id === hostId && isEngagementMessage(m, hostId, maleUserIds));
   const manSent = messages.some(
-    (m) => maleUserIds.includes(m.sender_id) && isRealGroupChatMessage(m.body),
+    (m) => maleUserIds.includes(m.sender_id) && isEngagementMessage(m, hostId, maleUserIds),
   );
   return hostSent && manSent;
 }
@@ -252,7 +283,34 @@ type GroupChatBillResult = {
   skipped?: string;
   duplicate?: boolean;
   minute?: number;
+  charged?: number;
+  earned?: number;
+  error?: string;
 };
+
+export async function billGroupChatMinute(
+  sessionId: string,
+  manId: string,
+): Promise<GroupChatBillResult | null> {
+  const { data, error } = await supabase.rpc("bill_group_chat_minute", {
+    p_session_id: sessionId,
+    p_man_id: manId,
+  });
+  if (error) {
+    console.error("[group-chat billing] RPC error", error.message);
+    return { success: false, error: error.message };
+  }
+  return (data as GroupChatBillResult | null) ?? { success: false, error: "empty response" };
+}
+
+export async function billGroupChatLeftover(sessionId: string, manId: string) {
+  const { data, error } = await supabase.rpc("bill_group_chat_leftover", {
+    p_session_id: sessionId,
+    p_man_id: manId,
+  });
+  if (error) console.warn("[group-chat billing] leftover error", error.message);
+  return data as GroupChatBillResult | null;
+}
 
 /** Host drives billing for every active man; each man also self-bills as a fallback (idempotent RPC). */
 export function useGroupChatBilling(params: {
@@ -264,23 +322,25 @@ export function useGroupChatBilling(params: {
   bothEngaged: boolean;
   activeMen: GroupChatParticipantInfo[];
   onInsufficient: (manId: string) => void;
-  onBilled?: () => void;
+  onBilled?: (result: GroupChatBillResult) => void;
+  onBillingSkip?: (reason: string) => void;
   onWalletUpdated?: () => void;
 }) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [minutesBilled, setMinutesBilled] = useState(0);
   const [isBilling, setIsBilling] = useState(false);
+  const [skipReason, setSkipReason] = useState<string | null>(null);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = useRef<number | null>(null);
   const billedRef = useRef(0);
   const inFlightRef = useRef(false);
-  const wasDriverRef = useRef(false);
   const sessionIdRef = useRef(params.sessionId);
   const hostIdRef = useRef(params.hostId);
   const activeMenRef = useRef(params.activeMen);
   const onInsufficientRef = useRef(params.onInsufficient);
   const onBilledRef = useRef(params.onBilled);
+  const onBillingSkipRef = useRef(params.onBillingSkip);
   const onWalletUpdatedRef = useRef(params.onWalletUpdated);
 
   sessionIdRef.current = params.sessionId;
@@ -288,30 +348,29 @@ export function useGroupChatBilling(params: {
   activeMenRef.current = params.activeMen;
   onInsufficientRef.current = params.onInsufficient;
   onBilledRef.current = params.onBilled;
+  onBillingSkipRef.current = params.onBillingSkip;
   onWalletUpdatedRef.current = params.onWalletUpdated;
 
   const activeMenCount = params.activeMen.length;
   const billingActive = params.bothEngaged && activeMenCount > 0;
-  const isDriver = billingActive && !!params.sessionId && (params.isHost || params.isMan);
+  const shouldRun = billingActive && !!params.sessionId && (params.isHost || params.isMan);
+
+  const stopInterval = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
 
   const billMan = useCallback(async (manId: string, reason: string) => {
     const sid = sessionIdRef.current;
     if (!sid) return;
-    const { data, error } = await supabase.rpc("bill_group_chat_minute", {
-      p_session_id: sid,
-      p_man_id: manId,
-    });
-    if (error) {
-      console.error("[group-chat billing] RPC error", reason, manId, error.message);
-      return;
-    }
-    const r = data as GroupChatBillResult | null;
-    if (!r) {
-      console.error("[group-chat billing] empty RPC response", reason, manId);
-      return;
-    }
+    const r = await billGroupChatMinute(sid, manId);
+    if (!r) return;
 
     if (r.skipped === "admin" || r.skipped === "not_male" || r.skipped === "host_not_billable") {
+      setSkipReason(r.skipped);
+      onBillingSkipRef.current?.(r.skipped);
       console.info("[group-chat billing] skipped", r.skipped, manId);
       return;
     }
@@ -323,14 +382,23 @@ export function useGroupChatBilling(params: {
 
     if (r.duplicate) return;
 
-    if (r.success === false && r.insufficient) {
-      onInsufficientRef.current(manId);
+    if (r.success === false) {
+      if (r.insufficient) {
+        onInsufficientRef.current(manId);
+        return;
+      }
+      if (r.error) {
+        console.error("[group-chat billing] failed", reason, manId, r.error);
+        setSkipReason(r.error);
+        onBillingSkipRef.current?.(r.error);
+      }
       return;
     }
 
     if (r.success) {
+      setSkipReason(null);
       console.info("[group-chat billing] charged", reason, manId, r);
-      onBilledRef.current?.();
+      onBilledRef.current?.(r);
       onWalletUpdatedRef.current?.();
       dispatchWalletRefresh();
     }
@@ -365,12 +433,8 @@ export function useGroupChatBilling(params: {
   billDueMinuteRef.current = billDueMinute;
 
   useEffect(() => {
-    if (!isDriver) {
-      wasDriverRef.current = false;
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+    if (!shouldRun) {
+      stopInterval();
       startRef.current = null;
       billedRef.current = 0;
       setElapsedSeconds(0);
@@ -379,8 +443,10 @@ export function useGroupChatBilling(params: {
       return;
     }
 
-    if (wasDriverRef.current && intervalRef.current) return;
-    wasDriverRef.current = true;
+    if (intervalRef.current) {
+      setIsBilling(true);
+      return;
+    }
 
     billedRef.current = 0;
     const start = Date.now();
@@ -406,14 +472,9 @@ export function useGroupChatBilling(params: {
         void billDueMinuteRef.current(due);
       }
     }, 1000);
+  }, [shouldRun, params.sessionId, params.isHost, stopInterval]);
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [isDriver, params.sessionId, params.isHost]);
+  useEffect(() => () => { stopInterval(); }, [stopInterval]);
 
   return {
     elapsedSeconds,
@@ -422,6 +483,7 @@ export function useGroupChatBilling(params: {
     bothEngaged: params.bothEngaged,
     billingActive,
     activeMenCount,
+    skipReason,
   };
 }
 
